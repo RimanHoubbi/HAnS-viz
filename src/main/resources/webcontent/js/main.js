@@ -241,11 +241,10 @@ closeSearchBtn.addEventListener("click", () => {
 });
 
 /* edit feature model */
+
 addFeatureBtn.addEventListener("click", () => {
-    var notification = createNotification("Select the parent feature where you'd like to add new feature.");  
     alert('1');
-    alert(notification);
-    alert(addFeatureListener);
+    var notification = createNotification("Select the parent feature where you'd like to add new feature.");  
     myChart.on('click', addFeatureListener, {notif: notification});
 });
 moveFeatureBtn.addEventListener("click", () => {
@@ -1393,6 +1392,7 @@ function getLevelOption() {
 // });
 
 
+
 function createAddRenamePopup(featureLpq, action, notif) {
     alert('3');
     const container = document.getElementById('modify-feature-rename-container');
@@ -1440,26 +1440,23 @@ function createAddRenamePopup(featureLpq, action, notif) {
         
     });
     content.appendChild(button);
-    setTimeout(() => {
-      window.addEventListener('click', function(event) {
-        if (!content.contains(event.target)) {
-            popup.remove();
-            if (action == 'rename') {
-                deleteNotification(notif, renameFeatureListener);
-            } else if (action == 'add') {
-                deleteNotification(notif, addFeatureListener);
-            }
+
+    const close = document.createElement('button');
+    close.textContent = 'Close';
+    close.addEventListener('click', function() {
+        popup.remove();
+        if (action == 'rename') {
+            deleteNotification(notif, renameFeatureListener);
+        } else if (action == 'add') {
+            deleteNotification(notif, addFeatureListener);
         }
-      });
-    }, "500");
-    // Close popup when clicking outside of it
+    });
+    content.appendChild(close);
 }
 
 const addFeatureListener = function(params) {
     alert('2');
     const featureLpq = params.data.id;
-    alert(featureLpq);
-    alert(this.notif);
     createAddRenamePopup(featureLpq, 'add', this.notif);
 };
 
@@ -1502,8 +1499,20 @@ function createDeletePopup(featureLpq, action, notif) {
         } else if (action == 'drop') {
             alert('drop: ' + featureLpq);
         }
+        popup.remove();
+        if (action == 'delete') {
 
+            deleteNotification(notif, deleteClickListener);
+        } else if (action == 'drop') {
 
+            deleteNotification(notif, dropClickListener);
+        }
+    });
+    content.appendChild(button);
+
+    const close = document.createElement('button');
+    close.textContent = 'Close';
+    close.addEventListener('click', function() {
         popup.remove();
         if (action == 'delete') {
             deleteNotification(notif, deleteClickListener);
@@ -1511,22 +1520,8 @@ function createDeletePopup(featureLpq, action, notif) {
             deleteNotification(notif, dropClickListener);
         }
     });
-    content.appendChild(button);
+    content.appendChild(close);
 
-
-    setTimeout(() => {
-      window.addEventListener('click', function(event) {
-        if (!content.contains(event.target)) {
-            popup.remove();
-            if (action == 'delete') {
-                deleteNotification(notif, deleteClickListener);
-            } else if (action == 'drop') {
-                deleteNotification(notif, dropClickListener);
-            }
-            
-        }
-      });
-    }, "500");
 }
 
 const deleteClickListener = function(params) {
@@ -1570,6 +1565,7 @@ function createNotification(notifText) {
 }
 
 function deleteNotification(notifPopup, handler) {
+    alert('delete');
     notifPopup.remove();
-    myChart.off('click', handler);
+    myChart.off('click');
 }
