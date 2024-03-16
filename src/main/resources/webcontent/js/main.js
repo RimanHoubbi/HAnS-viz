@@ -23,6 +23,7 @@ const nav = document.querySelector(".nav"),
     navOpenBtn = document.querySelector(".navOpenBtn"),
     navCloseBtn = document.querySelector(".navCloseBtn"),
     settingsBtn = document.querySelector(".settings"),
+    editBtn = document.getElementById("edit-button"),
     refreshBtn = document.getElementById("refresh-button");
 
 /* search elements */
@@ -55,6 +56,15 @@ const showScattering = document.querySelector(".show-scattering"),
 
 /* settings */
 const settingsBox = document.querySelector(".settings-box");
+
+/* edit feature model */
+const featureModificationBox = document.querySelector(".feature-modification-box");
+const addFeatureBtn = document.getElementById("feature-modification-add-btn");
+const moveFeatureBtn = document.getElementById("feature-modification-move-btn");
+const renameFeatureBtn = document.getElementById("feature-modification-rename-btn");
+const deleteFeatureBtn = document.getElementById("feature-modification-delete-btn");
+const dropFeatureBtn = document.getElementById("feature-modification-drop-btn");
+
 
 /* settings toggle elements */
 const automatedFetchToggle = document.querySelector("#automated-fetch-toggle"),
@@ -136,6 +146,7 @@ navOpenBtn.addEventListener("click", () => {
     searchIcon.classList.replace("uil-times", "uil-search");
     chartDom.classList.add("dumb");
     settingsBox.classList.remove("active");
+    featureModificationBox.classList.remove("active");
 });
 navCloseBtn.addEventListener("click", () => {
     nav.classList.remove("openNav");
@@ -146,6 +157,11 @@ refreshBtn.addEventListener("click", () => {
 });
 settingsBtn.addEventListener("click", () => {
     settingsBox.classList.toggle("active");
+    featureModificationBox.classList.remove("active");
+});
+editBtn.addEventListener("click", () => {
+    featureModificationBox.classList.toggle("active");
+    settingsBox.classList.remove("active");
 });
 
 /* settings */
@@ -223,6 +239,32 @@ closeSearchBtn.addEventListener("click", () => {
     searchBoxSettings.classList.remove("openSettings");
     highlightItem("");
 });
+
+/* edit feature model */
+addFeatureBtn.addEventListener("click", () => {
+    var notification = createNotification("Select the parent feature where you'd like to add new feature.");  
+    alert('1');
+    alert(notification);
+    alert(addFeatureListener);
+    myChart.on('click', addFeatureListener, {notif: notification});
+});
+moveFeatureBtn.addEventListener("click", () => {
+    var notification = createNotification("Choose the target feature you'd like to move and the destination where you want to move it.");
+    myChart.on('click', moveFeatureListener, {notif: notification});
+});
+renameFeatureBtn.addEventListener("click", () => {
+    var notification = createNotification("Select feature you'd like to rename");
+    myChart.on('click', renameFeatureListener, {notif: notification});
+});
+deleteFeatureBtn.addEventListener("click", () => {
+    var notification = createNotification("Select feature you'd like to delete");
+    myChart.on('click', deleteClickListener, {notif: notification});
+});
+dropFeatureBtn.addEventListener("click", () => {
+    var notification = createNotification("Select feature you'd like to drop");
+    myChart.on('click', dropClickListener, {notif: notification});
+});
+
 
 /* feature info window */
 // &begin[FeatureInfoWindow]
@@ -448,7 +490,7 @@ function openScattering(){
         return;
 
     scatteringWindow.classList.add("active");
-    let body = document.getElementById(" mainBody");
+    let body = document.getElementById("mainBody");
     body.classList.add("applyBackdrop");
     hideScatteringWindow.classList.add("active");
     // &begin[Scattering]
@@ -596,7 +638,7 @@ function openScattering(){
 function closeScattering() {
     scatteringWindow.classList.remove("active");
     hideScatteringWindow.classList.remove("active");
-    let body = document.getElementById(" mainBody");
+    let body = document.getElementById("mainBody");
     body.classList.remove("applyBackdrop");
 }
 function showInEditor(){
@@ -1321,3 +1363,213 @@ function getLevelOption() {
 }
 
 // &end[TreeMap]
+
+// function getOffset(el) {
+//   const rect = el.getBoundingClientRect();
+//   return {
+//     left: rect.left,
+//     top: rect.top + rect.height
+//   };
+// }
+// const rect = el.getBoundingClientRect();
+// const bottomCornerY = rect.top + rect.height;
+// const scrollOffsetY = window.scrollY || window.pageYOffset;
+// const adjustedBottomCornerY = bottomCornerY + scrollOffsetY;
+
+
+// var newElement = document.getElementById('edit-feature');
+// newElement.style.position = 'absolute';
+// newElement.style.top = `${adjustedBottomCornerY}px`;
+// newElement.style.left = `${rect.left + 10}px`; // Adjust left position as needed
+// newElement.style.zIndex = 2;
+// const el = document.getElementById("edit-feature-button");
+
+// el.addEventListener("mouseenter", function() {
+    
+//     newElement.display = 'block';
+// });
+// el.addEventListener("mouseleave", function() {
+//     newElement.display = 'none';
+// });
+
+
+function createAddRenamePopup(featureLpq, action, notif) {
+    alert('3');
+    const container = document.getElementById('modify-feature-rename-container');
+    
+    // Create the popup div
+    const popup = document.createElement('div');
+    popup.className = 'modify-feature-custom-popup';
+    container.appendChild(popup);
+
+    // Create popup content
+    const content = document.createElement('div');
+    content.className = 'modify-feature-popup-content';
+    popup.appendChild(content);
+
+    const message = document.createElement('p');
+    message.className = 'popup-message';
+    if (action == 'rename') {
+        message.innerText = "Rename feature: " + featureLpq;
+    } else if (action == 'add') {
+        message.innerText = "Add new feature to " + featureLpq;
+    }
+    content.appendChild(message);
+
+    // Create input field
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'popup-input'
+    content.appendChild(input);
+
+    // Create button
+    const button = document.createElement('button');
+    button.textContent = 'Submit';
+    button.addEventListener('click', function() {
+        if (action == 'rename') {
+            alert('rename: ' + input.value);
+        } else if (action == 'add') {
+            alert('add: ' + input.value);
+        }
+        popup.remove(); // Remove popup when button is clicked
+        if (action == 'rename') {
+            deleteNotification(notif, renameFeatureListener);
+        } else if (action == 'add') {
+            deleteNotification(notif, addFeatureListener);
+        }
+        
+    });
+    content.appendChild(button);
+    setTimeout(() => {
+      window.addEventListener('click', function(event) {
+        if (!content.contains(event.target)) {
+            popup.remove();
+            if (action == 'rename') {
+                deleteNotification(notif, renameFeatureListener);
+            } else if (action == 'add') {
+                deleteNotification(notif, addFeatureListener);
+            }
+        }
+      });
+    }, "500");
+    // Close popup when clicking outside of it
+}
+
+const addFeatureListener = function(params) {
+    alert('2');
+    const featureLpq = params.data.id;
+    alert(featureLpq);
+    alert(this.notif);
+    createAddRenamePopup(featureLpq, 'add', this.notif);
+};
+
+const moveFeatureListener = function(params) {
+    // after second feature selected delete notif and close
+};
+
+const renameFeatureListener = function(params) {
+    const featureLpq = params.data.id;
+    createAddRenamePopup(featureLpq, 'rename', this.notif);
+}
+
+function createDeletePopup(featureLpq, action, notif) {
+    const container = document.getElementById('modify-feature-delete-container');
+    
+    // Create the popup div
+    const popup = document.createElement('div');
+    popup.className = 'modify-feature-custom-popup';
+    container.appendChild(popup);
+
+    // Create popup content
+    const content = document.createElement('div');
+    content.className = 'modify-feature-popup-content';
+    popup.appendChild(content);
+
+    const message = document.createElement('p');
+    message.className = 'popup-message';
+    const button = document.createElement('button');
+    if (action == 'delete') {
+        message.innerText = "Are you sure you want to delete feature " + featureLpq + "?";
+        button.textContent = 'Delete';
+    } else if (action == 'drop') {
+        message.innerText = "Are you sure you want to drop feature " + featureLpq + "?";
+        button.textContent = 'Drop';
+    }
+    content.appendChild(message);
+    button.addEventListener('click', function() {
+        if (action == 'delete') {
+            alert('delete: ' + featureLpq);
+        } else if (action == 'drop') {
+            alert('drop: ' + featureLpq);
+        }
+
+
+        popup.remove();
+        if (action == 'delete') {
+            deleteNotification(notif, deleteClickListener);
+        } else if (action == 'drop') {
+            deleteNotification(notif, dropClickListener);
+        }
+    });
+    content.appendChild(button);
+
+
+    setTimeout(() => {
+      window.addEventListener('click', function(event) {
+        if (!content.contains(event.target)) {
+            popup.remove();
+            if (action == 'delete') {
+                deleteNotification(notif, deleteClickListener);
+            } else if (action == 'drop') {
+                deleteNotification(notif, dropClickListener);
+            }
+            
+        }
+      });
+    }, "500");
+}
+
+const deleteClickListener = function(params) {
+    const featureLpq = params.data.id; 
+    createDeletePopup(featureLpq, 'delete', this.notif);
+};
+
+
+const dropClickListener = function(params) {
+    const featureLpq = params.data.id; 
+    createDeletePopup(featureLpq, 'drop', this.notif);
+};
+
+function createNotification(notifText) {
+    const container = document.getElementById("modify-feature-notification-container");
+    
+    const popup = document.createElement('div');
+    popup.className = 'modify-feature-notif';
+    container.appendChild(popup);
+
+    const content = document.createElement('div');
+    content.className = 'modify-feature-notif-content';
+    popup.appendChild(content);
+
+    const notif = document.createElement('span');
+    notif.innerText = notifText;
+    notif.style.fontSize = '15px';
+    content.appendChild(notif);
+
+    const button = document.createElement('span');
+    button.className = "material-symbols-outlined close";
+    button.textContent = 'close';
+    content.appendChild(button);
+
+    button.addEventListener('click', function() {
+        popup.remove();
+    });
+
+    featureModificationBox.classList.remove('active');
+    return popup;
+}
+
+function deleteNotification(notifPopup, handler) {
+    notifPopup.remove();
+    myChart.off('click', handler);
+}
