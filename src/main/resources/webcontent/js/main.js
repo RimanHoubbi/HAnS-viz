@@ -1533,10 +1533,8 @@ function createDeletePopup(feature, action, notif) {
         }
         popup.remove();
         if (action == 'delete') {
-            alert(jsonData.treeData.features);
-            alert(jsonData.treeData.features[0]);
-            alert(feature);
-            deleteTreeElement(jsonData.treeData.features, jsonData.treeData.features[0], feature);
+            
+            deleteFeatureFromTree(featureLpq)
             deleteNotification(notif, deleteClickListener);
         } else if (action == 'drop') {
 
@@ -1609,5 +1607,14 @@ function addFeatureToTree(parentLPQ, newFeatureLPQ) {
     requestData(data, function() {
         refreshData();
     }, false);
-
 }
+
+function deleteFeatureFromTree(featureLPQ) {
+    alert(featureLPQ);
+    let data = "deleteFeature" + "," + featureLPQ;
+    requestData(data, function() {
+        refreshData();
+    }, false);
+}
+
+

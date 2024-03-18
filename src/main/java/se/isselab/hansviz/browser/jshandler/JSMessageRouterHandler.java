@@ -103,25 +103,35 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                 return true;
             }
             case "addFeature" -> {
-                String parentLPQ = requestTokens[1];
-                String childLPQ = requestTokens[2];
-                List<FeatureModelFeature> parentFeatures = ReadAction.compute(() -> FeatureModelUtil.findLPQ(project, parentLPQ));
-                if (parentFeatures.isEmpty()) {
-                    return false;
-                }
-                FeatureModelFeatureImpl parentFeature = (FeatureModelFeatureImpl) parentFeatures.get(0);
-                String result = parentFeature.addToFeatureModel(childLPQ);
-                if (result.equals(childLPQ)) {
+                FeatureModelFeature parentFeature = getFeatureFromLPQ(requestTokens[1]);
+                if (parentFeature == null) { return false; }
+                String result = parentFeature.addToFeatureModel(requestTokens[2]);
+                if (result.equals(requestTokens[2].trim())) {
                     callback.success("JSON");
                     return true;
                 } else {
                     callback.failure(-1, "Feature name is invalid");
                     return false;
                 }
-
+            }
+            case "deleteFeature" -> {
+//                FeatureModelFeature parentFeature = getFeatureFromLPQ(requestTokens[1]);
+                FeatureModelFeature childFeature = getFeatureFromLPQ(requestTokens[1]);
+                System.out.println(childFeature);
+                if (childFeature == null) { return false; }
+                FeatureModelFeature.deleteFromFeatureModel(childFeature);
+                callback.success("JSON");
+                return true;
             }
         }
         return false;
     }
     // &end[Request]
+
+    private FeatureModelFeature getFeatureFromLPQ(String lpq) {
+        List<FeatureModelFeature> listOfFeatures = ReadAction.compute(() -> FeatureModelUtil.findLPQ(project, lpq));
+        if (listOfFeatures.isEmpty()) { return null; }
+        FeatureModelFeature feature = (FeatureModelFeature) listOfFeatures.get(0);
+        return feature;
+    }
 }
