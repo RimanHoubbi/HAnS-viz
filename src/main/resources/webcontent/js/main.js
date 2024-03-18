@@ -241,29 +241,42 @@ closeSearchBtn.addEventListener("click", () => {
 });
 
 /* edit feature model */
-
 addFeatureBtn.addEventListener("click", () => {
-    alert('1');
-    var notification = createNotification("Select the parent feature where you'd like to add new feature.");  
+    var notification = createNotification("Select the parent feature where you'd like to add new feature.", addFeatureListener);  
     myChart.on('click', addFeatureListener, {notif: notification});
 });
 moveFeatureBtn.addEventListener("click", () => {
-    var notification = createNotification("Choose the target feature you'd like to move and the destination where you want to move it.");
+    var notification = createNotification("Choose the target feature you'd like to move and the destination where you want to move it.", moveFeatureListener);
     myChart.on('click', moveFeatureListener, {notif: notification});
 });
 renameFeatureBtn.addEventListener("click", () => {
-    var notification = createNotification("Select feature you'd like to rename");
+    var notification = createNotification("Select feature you'd like to rename", renameFeatureListener);
     myChart.on('click', renameFeatureListener, {notif: notification});
 });
 deleteFeatureBtn.addEventListener("click", () => {
-    var notification = createNotification("Select feature you'd like to delete");
+    var notification = createNotification("Select feature you'd like to delete", deleteClickListener);
     myChart.on('click', deleteClickListener, {notif: notification});
 });
 dropFeatureBtn.addEventListener("click", () => {
-    var notification = createNotification("Select feature you'd like to drop");
+    var notification = createNotification("Select feature you'd like to drop", dropClickListener);
     myChart.on('click', dropClickListener, {notif: notification});
 });
 
+function editFeatureBoxSetup() {
+    if (myChart.getOption().series[0].type === 'tree') {
+        addFeatureBtn.disabled = false;
+        moveFeatureBtn.disabled = false;
+        renameFeatureBtn.disabled = false;
+        deleteFeatureBtn.disabled = false;
+        dropFeatureBtn.disabled = false;
+    } else {
+        addFeatureBtn.disabled = true;
+        moveFeatureBtn.disabled = true;
+        renameFeatureBtn.disabled = true;
+        deleteFeatureBtn.disabled = true;
+        dropFeatureBtn.disabled = true;
+    }
+}
 
 /* feature info window */
 // &begin[FeatureInfoWindow]
@@ -768,21 +781,23 @@ function toggleChart(chart, forceReload = false){
         case state.treeMapChart:{
             openTreemapView();
             state.currentChart = state.treeMapChart;
+            editFeatureBoxSetup();
             break;
         }
         case state.treeChart:{
             openTreeView();
             state.currentChart = state.treeChart;
+            editFeatureBoxSetup();
             break;
         }
         case state.tanglingChart:{
             openTanglingView();
             state.currentChart = state.tanglingChart;
+            editFeatureBoxSetup();
             break;
         }
     }
     state.isSwitching = true;
-
 }
 
 function updateFetchIntervall(newIntervall){
@@ -1035,10 +1050,13 @@ function handleData(option, response) {
         case "treeMap":
             jsonData.treeData = JSON.parse(response);
             break;
+        case "addFeature":
+            break;
     }
 }
 
 // &end[Request]
+
 
 /* ECharts plotting functions */
 // &begin[Coloring]
@@ -1391,10 +1409,10 @@ function getLevelOption() {
 //     newElement.display = 'none';
 // });
 
-
+const featurePattern = /^([A-Z]+|[a-z]+|[0-9]+|'_'+|'\''+)*$/
+            
 
 function createAddRenamePopup(featureLpq, action, notif) {
-    alert('3');
     const container = document.getElementById('modify-feature-rename-container');
     
     // Create the popup div
@@ -1422,6 +1440,10 @@ function createAddRenamePopup(featureLpq, action, notif) {
     input.className = 'popup-input'
     content.appendChild(input);
 
+    // Create error field
+    const error = document.createElement('p');
+    error.className = 'modify-feature-popup-error'
+
     // Create button
     const button = document.createElement('button');
     button.textContent = 'Submit';
@@ -1429,7 +1451,17 @@ function createAddRenamePopup(featureLpq, action, notif) {
         if (action == 'rename') {
             alert('rename: ' + input.value);
         } else if (action == 'add') {
-            alert('add: ' + input.value);
+            alert(input.value)
+            if (input.value.length == 0 || input.value.trim().length == 0 || !featurePattern.test(input.value.trim())) {
+                error.innerText = "Feature name incorrect";
+                content.appendChild(error);
+                setTimeout(() => {
+                    content.removeChild(error);
+                }, 5000);
+                return;
+            } else {
+                addFeatureToTree(featureLpq, input.value);
+            }
         }
         popup.remove(); // Remove popup when button is clicked
         if (action == 'rename') {
@@ -1455,7 +1487,6 @@ function createAddRenamePopup(featureLpq, action, notif) {
 }
 
 const addFeatureListener = function(params) {
-    alert('2');
     const featureLpq = params.data.id;
     createAddRenamePopup(featureLpq, 'add', this.notif);
 };
@@ -1469,7 +1500,8 @@ const renameFeatureListener = function(params) {
     createAddRenamePopup(featureLpq, 'rename', this.notif);
 }
 
-function createDeletePopup(featureLpq, action, notif) {
+function createDeletePopup(feature, action, notif) {
+    let featureLpq = feature.id;
     const container = document.getElementById('modify-feature-delete-container');
     
     // Create the popup div
@@ -1501,7 +1533,10 @@ function createDeletePopup(featureLpq, action, notif) {
         }
         popup.remove();
         if (action == 'delete') {
-
+            alert(jsonData.treeData.features);
+            alert(jsonData.treeData.features[0]);
+            alert(feature);
+            deleteTreeElement(jsonData.treeData.features, jsonData.treeData.features[0], feature);
             deleteNotification(notif, deleteClickListener);
         } else if (action == 'drop') {
 
@@ -1525,8 +1560,7 @@ function createDeletePopup(featureLpq, action, notif) {
 }
 
 const deleteClickListener = function(params) {
-    const featureLpq = params.data.id; 
-    createDeletePopup(featureLpq, 'delete', this.notif);
+    createDeletePopup(params.data, 'delete', this.notif);
 };
 
 
@@ -1535,7 +1569,7 @@ const dropClickListener = function(params) {
     createDeletePopup(featureLpq, 'drop', this.notif);
 };
 
-function createNotification(notifText) {
+function createNotification(notifText, handler) {
     const container = document.getElementById("modify-feature-notification-container");
     
     const popup = document.createElement('div');
@@ -1557,7 +1591,7 @@ function createNotification(notifText) {
     content.appendChild(button);
 
     button.addEventListener('click', function() {
-        popup.remove();
+        deleteNotification(popup, handler);
     });
 
     featureModificationBox.classList.remove('active');
@@ -1567,5 +1601,13 @@ function createNotification(notifText) {
 function deleteNotification(notifPopup, handler) {
     alert('delete');
     notifPopup.remove();
-    myChart.off('click');
+    myChart.off('click', handler);
+}
+
+function addFeatureToTree(parentLPQ, newFeatureLPQ) {
+    let data = "addFeature" + "," + parentLPQ + "," + newFeatureLPQ;
+    requestData(data, function() {
+        refreshData();
+    }, false);
+
 }

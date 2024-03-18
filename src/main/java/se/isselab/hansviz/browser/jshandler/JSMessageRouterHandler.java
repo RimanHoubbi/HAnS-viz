@@ -1,6 +1,11 @@
 package se.isselab.hansviz.browser.jshandler;
 
 import se.isselab.HAnS.featureExtension.FeatureService;
+import se.isselab.HAnS.featureModel.psi.FeatureModelFeature;
+import se.isselab.HAnS.featureModel.psi.impl.FeatureModelFeatureImpl;
+import se.isselab.HAnS.featureModel.FeatureModelUtil;
+import com.intellij.openapi.application.ReadAction;
+
 import se.isselab.hansviz.JSONHandler.JSONHandler;
 
 import com.intellij.openapi.project.Project;
@@ -8,6 +13,9 @@ import org.cef.browser.CefBrowser;
 import org.cef.browser.CefFrame;
 import org.cef.callback.CefQueryCallback;
 import org.cef.handler.CefMessageRouterHandlerAdapter;
+
+import java.util.Arrays;
+import java.util.List;
 
 /*
 Copyright 2024 David Stechow & Philipp Kusmierz
@@ -93,6 +101,24 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                 else featureService.openFileInProject(requestTokens[1]);
                 callback.success("");
                 return true;
+            }
+            case "addFeature" -> {
+                String parentLPQ = requestTokens[1];
+                String childLPQ = requestTokens[2];
+                List<FeatureModelFeature> parentFeatures = ReadAction.compute(() -> FeatureModelUtil.findLPQ(project, parentLPQ));
+                if (parentFeatures.isEmpty()) {
+                    return false;
+                }
+                FeatureModelFeatureImpl parentFeature = (FeatureModelFeatureImpl) parentFeatures.get(0);
+                String result = parentFeature.addToFeatureModel(childLPQ);
+                if (result.equals(childLPQ)) {
+                    callback.success("JSON");
+                    return true;
+                } else {
+                    callback.failure(-1, "Feature name is invalid");
+                    return false;
+                }
+
             }
         }
         return false;

@@ -180,6 +180,10 @@ a:hover {
     transition: background-color 0.3s ease;
 }
 
+.edit-row button:disabled {
+    background-color: #b0a0d9;
+}
+
 .edit-row button:hover {
     background-color: #b0a0d9;
 }
@@ -611,6 +615,11 @@ a:hover {
     padding: 20px;
     border-radius: 5px;
     box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+}
+
+.modify-feature-popup-error {
+  color: red;
+  font-size: 14px;
 }
 
 .modify-feature-notif {
