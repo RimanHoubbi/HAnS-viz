@@ -1,5 +1,9 @@
 package se.isselab.hansviz.browser.jshandler;
 
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.psi.PsiDocumentManager;
+import com.intellij.psi.PsiElement;
 import se.isselab.HAnS.featureExtension.FeatureService;
 import se.isselab.HAnS.featureModel.psi.FeatureModelFeature;
 import se.isselab.HAnS.featureModel.psi.impl.FeatureModelFeatureImpl;
@@ -115,11 +119,41 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                 }
             }
             case "deleteFeature" -> {
-//                FeatureModelFeature parentFeature = getFeatureFromLPQ(requestTokens[1]);
                 FeatureModelFeature childFeature = getFeatureFromLPQ(requestTokens[1]);
-                System.out.println(childFeature);
                 if (childFeature == null) { return false; }
-                FeatureModelFeature.deleteFromFeatureModel(childFeature);
+                childFeature.deleteFromFeatureModel();
+                callback.success("JSON");
+                return true;
+            }
+            case "moveFeature" -> {
+                FeatureModelFeature childFeature = getFeatureFromLPQ(requestTokens[1]);
+                FeatureModelFeature newParentFeature = getFeatureFromLPQ(requestTokens[2]);
+
+                if (childFeature == null) { return false; }
+                if (newParentFeature == null) { return false; }
+
+                // check that parentFeature isn't child of childFeature
+                if (checkFeatureChildOfParent(childFeature, newParentFeature)) {
+                    return false;
+                }
+                // check that childFeature isn't already a direct child of parentFeature
+                // otherwise the operation is useless
+                for(PsiElement child : newParentFeature.getChildren()) {
+                    if (child.equals(childFeature)) {
+                        return true;
+                    }
+                }
+
+                childFeature = childFeature.deleteFromFeatureModel(); // delete child from feature model tree
+
+                // refresh to get accurate offset of parentFeature
+                final Project projectInstance = ReadAction.compute(newParentFeature::getProject);
+                WriteCommandAction.runWriteCommandAction(projectInstance, () -> {
+                    PsiDocumentManager.getInstance(projectInstance).commitAllDocuments();
+                });
+
+
+                newParentFeature.addWithChildren(childFeature);
                 callback.success("JSON");
                 return true;
             }
@@ -133,5 +167,21 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
         if (listOfFeatures.isEmpty()) { return null; }
         FeatureModelFeature feature = (FeatureModelFeature) listOfFeatures.get(0);
         return feature;
+    }
+
+    private static boolean checkFeatureChildOfParent(FeatureModelFeature parentFeature, FeatureModelFeature childFeature) {
+        if (parentFeature.equals(childFeature)) {
+            return true; // Found the child feature at this level
+        }
+
+        // Check children recursively
+        PsiElement[] children = parentFeature.getChildren();
+        for (PsiElement child : children) {
+            if (checkFeatureChildOfParent(((FeatureModelFeature) child), childFeature)) {
+                return true; // Child feature found in one of the children
+            }
+        }
+
+        return false; // Child feature not found in this subtree
     }
 }
