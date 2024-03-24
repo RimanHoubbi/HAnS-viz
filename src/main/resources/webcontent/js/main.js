@@ -1448,21 +1448,21 @@ function createAddRenamePopup(featureLpq, action, notif) {
     const button = document.createElement('button');
     button.textContent = 'Submit';
     button.addEventListener('click', function() {
+        if (input.value.length == 0 || input.value.trim().length == 0 || !featurePattern.test(input.value.trim())) {
+            error.innerText = "Feature name incorrect";
+            content.appendChild(error);
+            setTimeout(() => {
+                content.removeChild(error);
+            }, 5000);
+            return;
+        }
         if (action == 'rename') {
             alert('rename: ' + input.value);
+            renameFeature(featureLpq, input.value);
         } else if (action == 'add') {
-            alert(input.value)
-            if (input.value.length == 0 || input.value.trim().length == 0 || !featurePattern.test(input.value.trim())) {
-                error.innerText = "Feature name incorrect";
-                content.appendChild(error);
-                setTimeout(() => {
-                    content.removeChild(error);
-                }, 5000);
-                return;
-            } else {
-                addFeatureToTree(featureLpq, input.value);
-            }
+            addFeatureToTree(featureLpq, input.value);
         }
+
         popup.remove(); // Remove popup when button is clicked
         if (action == 'rename') {
             deleteNotification(notif, renameFeatureListener);
@@ -1507,7 +1507,7 @@ const moveFeatureListener = function(params) {
         _clicks--;
     } else if (_clicks == 1) {
         _newParentFeature = params.data;
-        createRenameDeleteDropPopup(_feature, 'move', this.notif, _newParentFeature);
+        createMoveDeleteDropPopup(_feature, 'move', this.notif, _newParentFeature);
         moveFeatureSetup();
     }
 };
@@ -1517,7 +1517,7 @@ const renameFeatureListener = function(params) {
     createAddRenamePopup(featureLpq, 'rename', this.notif);
 }
 
-function createRenameDeleteDropPopup(feature, action, notif, newParentFeature=null) {
+function createMoveDeleteDropPopup(feature, action, notif, newParentFeature=null) {
     let featureLpq = feature.id;
     newParentFeature = newParentFeature ? newParentFeature.id : null;
     const container = document.getElementById('modify-feature-delete-container');
@@ -1584,13 +1584,13 @@ function createRenameDeleteDropPopup(feature, action, notif, newParentFeature=nu
 }
 
 const deleteFeatureListener = function(params) {
-    createRenameDeleteDropPopup(params.data, 'delete', this.notif);
+    createMoveDeleteDropPopup(params.data, 'delete', this.notif);
 };
 
 
 const dropFeatureListener = function(params) {
     const featureLpq = params.data.id; 
-    createRenameDeleteDropPopup(featureLpq, 'drop', this.notif);
+    createMoveDeleteDropPopup(featureLpq, 'drop', this.notif);
 };
 
 function createNotification(notifText, handler) {
@@ -1631,6 +1631,13 @@ function deleteNotification(notifPopup, handler) {
 
 function addFeatureToTree(parentLPQ, newFeatureLPQ) {
     let data = "addFeature" + "," + parentLPQ + "," + newFeatureLPQ;
+    requestData(data, function() {
+        refreshData();
+    }, false);
+}
+
+function renameFeature(parentLPQ, newNameLPQ) {
+    let data = "renameFeature" + "," + parentLPQ + "," + newNameLPQ;
     requestData(data, function() {
         refreshData();
     }, false);

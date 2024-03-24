@@ -152,10 +152,20 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                     PsiDocumentManager.getInstance(projectInstance).commitAllDocuments();
                 });
 
-
                 newParentFeature.addWithChildren(childFeature);
                 callback.success("JSON");
                 return true;
+            }
+            case "renameFeature" -> {
+                FeatureModelFeature childFeature = getFeatureFromLPQ(requestTokens[1]);
+                String newFeatureName = requestTokens[2];
+                if (childFeature == null) { return false; }
+
+                if (childFeature.renameInFeatureModel(newFeatureName)){
+                    callback.success("JSON");
+                    return true;
+                };
+                return false;
             }
         }
         return false;
