@@ -109,8 +109,8 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
             case "addFeature" -> {
                 FeatureModelFeature parentFeature = getFeatureFromLPQ(requestTokens[1]);
                 if (parentFeature == null) { return false; }
-                String result = parentFeature.addToFeatureModel(requestTokens[2]);
-                if (result.equals(requestTokens[2].trim())) {
+
+                if (parentFeature.addToFeatureModel(requestTokens[2])) {
                     callback.success("JSON");
                     return true;
                 } else {
