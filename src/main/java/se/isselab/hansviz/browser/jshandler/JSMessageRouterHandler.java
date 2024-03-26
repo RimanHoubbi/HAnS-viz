@@ -121,7 +121,7 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
             case "deleteFeature" -> {
                 FeatureModelFeature childFeature = getFeatureFromLPQ(requestTokens[1]);
                 if (childFeature == null) { return false; }
-                childFeature.deleteFromFeatureModel();
+                childFeature.deleteFeatureWithAnnotations();
                 callback.success("JSON");
                 return true;
             }
@@ -142,17 +142,13 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                     if (child.equals(childFeature)) {
                         return true;
                     }
+                    // parent can't contain 2 child elements with same name
+                    if (((FeatureModelFeature)child).getFeatureName().equals(childFeature.getFeatureName())) {
+                        return false; // -> rename child feature before moving
+                    }
                 }
 
-                childFeature = childFeature.deleteFromFeatureModel(); // delete child from feature model tree
-
-                // refresh to get accurate offset of parentFeature
-                final Project projectInstance = ReadAction.compute(newParentFeature::getProject);
-                WriteCommandAction.runWriteCommandAction(projectInstance, () -> {
-                    PsiDocumentManager.getInstance(projectInstance).commitAllDocuments();
-                });
-
-                newParentFeature.addWithChildren(childFeature);
+                newParentFeature.moveFeatureWithChildren(childFeature);
                 callback.success("JSON");
                 return true;
             }
