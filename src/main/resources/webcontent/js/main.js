@@ -241,25 +241,52 @@ closeSearchBtn.addEventListener("click", () => {
 });
 
 /* edit feature model */
+var currentEditListener = null;
+var currentNotifPopup = null;
+function editFeatureModelSetup() {
+    if (currentEditListener != null) {
+        if (currentEditListener == moveFeatureListener) { moveFeatureSetup(); }
+        myChart.off('click', currentEditListener);
+    }
+    if (currentNotifPopup != null) {currentNotifPopup.remove();}
+    
+    currentEditListener = null;
+    currentNotifPopup = null;
+}
 addFeatureBtn.addEventListener("click", () => {
+    editFeatureModelSetup();
     var notification = createNotification("Select the parent feature where you'd like to add new feature.", addFeatureListener);  
-    myChart.on('click', addFeatureListener, {notif: notification});
+    currentEditListener = addFeatureListener;
+    currentNotifPopup = notification;
+    myChart.on('click', addFeatureListener);
 });
 moveFeatureBtn.addEventListener("click", () => {
+    editFeatureModelSetup();
     var notification = createNotification("Choose the target feature you'd like to move and the destination where you want to move it.", moveFeatureListener);
-    myChart.on('click', moveFeatureListener, {notif: notification});
+    currentEditListener = moveFeatureListener;
+    currentNotifPopup = notification;
+    myChart.on('click', moveFeatureListener);
 });
 renameFeatureBtn.addEventListener("click", () => {
+    editFeatureModelSetup();
     var notification = createNotification("Select feature you'd like to rename", renameFeatureListener);
-    myChart.on('click', renameFeatureListener, {notif: notification});
+    currentEditListener = renameFeatureListener;
+    currentNotifPopup = notification;
+    myChart.on('click', renameFeatureListener);
 });
 deleteFeatureBtn.addEventListener("click", () => {
+    editFeatureModelSetup();
     var notification = createNotification("Select feature you'd like to delete", deleteFeatureListener);
-    myChart.on('click', deleteFeatureListener, {notif: notification});
+    currentEditListener = deleteFeatureListener;
+    currentNotifPopup = notification;
+    myChart.on('click', deleteFeatureListener);
 });
 dropFeatureBtn.addEventListener("click", () => {
+    editFeatureModelSetup();
     var notification = createNotification("Select feature you'd like to drop", dropFeatureListener);
-    myChart.on('click', dropFeatureListener, {notif: notification});
+    currentEditListener = dropFeatureListener;
+    currentNotifPopup = notification;
+    myChart.on('click', dropFeatureListener);
 });
 
 function editFeatureBoxSetup() {
@@ -1381,38 +1408,11 @@ function getLevelOption() {
 
 // &end[TreeMap]
 
-// function getOffset(el) {
-//   const rect = el.getBoundingClientRect();
-//   return {
-//     left: rect.left,
-//     top: rect.top + rect.height
-//   };
-// }
-// const rect = el.getBoundingClientRect();
-// const bottomCornerY = rect.top + rect.height;
-// const scrollOffsetY = window.scrollY || window.pageYOffset;
-// const adjustedBottomCornerY = bottomCornerY + scrollOffsetY;
-
-
-// var newElement = document.getElementById('edit-feature');
-// newElement.style.position = 'absolute';
-// newElement.style.top = `${adjustedBottomCornerY}px`;
-// newElement.style.left = `${rect.left + 10}px`; // Adjust left position as needed
-// newElement.style.zIndex = 2;
-// const el = document.getElementById("edit-feature-button");
-
-// el.addEventListener("mouseenter", function() {
-    
-//     newElement.display = 'block';
-// });
-// el.addEventListener("mouseleave", function() {
-//     newElement.display = 'none';
-// });
 
 const featurePattern = /^([A-Z]+|[a-z]+|[0-9]+|'_'+|'\''+)*$/
             
 
-function createAddRenamePopup(featureLpq, action, notif) {
+function createAddRenamePopup(featureLpq, action) {
     const container = document.getElementById('modify-feature-rename-container');
     
     // Create the popup div
@@ -1438,6 +1438,10 @@ function createAddRenamePopup(featureLpq, action, notif) {
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'popup-input'
+    if (action == 'rename') {
+        let splitStr = featureLpq.split("::");
+        input.value = splitStr[splitStr.length-1]
+    } // set old value
     content.appendChild(input);
 
     // Create error field
@@ -1446,6 +1450,7 @@ function createAddRenamePopup(featureLpq, action, notif) {
 
     // Create button
     const button = document.createElement('button');
+    button.className = 'submit-btn';
     button.textContent = 'Submit';
     button.addEventListener('click', function() {
         if (input.value.length == 0 || input.value.trim().length == 0 || !featurePattern.test(input.value.trim())) {
@@ -1457,38 +1462,30 @@ function createAddRenamePopup(featureLpq, action, notif) {
             return;
         }
         if (action == 'rename') {
-            alert('rename: ' + input.value);
             renameFeature(featureLpq, input.value);
         } else if (action == 'add') {
             addFeatureToTree(featureLpq, input.value);
         }
 
         popup.remove(); // Remove popup when button is clicked
-        if (action == 'rename') {
-            deleteNotification(notif, renameFeatureListener);
-        } else if (action == 'add') {
-            deleteNotification(notif, addFeatureListener);
-        }
+        editFeatureModelSetup();
         
     });
     content.appendChild(button);
 
     const close = document.createElement('button');
     close.textContent = 'Close';
+    close.className = 'close-btn';
     close.addEventListener('click', function() {
         popup.remove();
-        if (action == 'rename') {
-            deleteNotification(notif, renameFeatureListener);
-        } else if (action == 'add') {
-            deleteNotification(notif, addFeatureListener);
-        }
+        editFeatureModelSetup();
     });
     content.appendChild(close);
 }
 
 const addFeatureListener = function(params) {
     const featureLpq = params.data.id;
-    createAddRenamePopup(featureLpq, 'add', this.notif);
+    createAddRenamePopup(featureLpq, 'add');
 };
 
 var _clicks;
@@ -1507,17 +1504,17 @@ const moveFeatureListener = function(params) {
         _clicks--;
     } else if (_clicks == 1) {
         _newParentFeature = params.data;
-        createMoveDeleteDropPopup(_feature, 'move', this.notif, _newParentFeature);
+        createMoveDeleteDropPopup(_feature, 'move', _newParentFeature);
         moveFeatureSetup();
     }
 };
 
 const renameFeatureListener = function(params) {
     const featureLpq = params.data.id;
-    createAddRenamePopup(featureLpq, 'rename', this.notif);
+    createAddRenamePopup(featureLpq, 'rename');
 }
 
-function createMoveDeleteDropPopup(feature, action, notif, newParentFeature=null) {
+function createMoveDeleteDropPopup(feature, action, newParentFeature=null) {
     let featureLpq = feature.id;
     newParentFeature = newParentFeature ? newParentFeature.id : null;
     const container = document.getElementById('modify-feature-delete-container');
@@ -1547,22 +1544,16 @@ function createMoveDeleteDropPopup(feature, action, notif, newParentFeature=null
     }
     content.appendChild(message);
     button.addEventListener('click', function() {
-        if (action == 'delete') {
-            alert('delete: ' + featureLpq);
-        } else if (action == 'drop') {
-            alert('drop: ' + featureLpq);
-        }
+        
         popup.remove();
         if (action == 'delete') {
             deleteFeatureFromTree(featureLpq)
-            deleteNotification(notif, deleteFeatureListener);
         } else if (action == 'drop') {
-
-            deleteNotification(notif, dropFeatureListener);
+            // TODO
         } else if (action == 'move') {
             moveFeatureInTree(featureLpq, newParentFeature);
-            deleteNotification(notif, moveFeatureListener);
         }
+        editFeatureModelSetup();
     });
     content.appendChild(button);
 
@@ -1570,27 +1561,21 @@ function createMoveDeleteDropPopup(feature, action, notif, newParentFeature=null
     close.textContent = 'Close';
     close.addEventListener('click', function() {
         popup.remove();
-        if (action == 'delete') {
-            deleteNotification(notif, deleteFeatureListener);
-        } else if (action == 'drop') {
-            deleteNotification(notif, dropFeatureListener);
-        }else if (action == 'move') {
-            moveFeatureSetup();
-            deleteNotification(notif, moveFeatureListener);
-        }
+        
+        editFeatureModelSetup();
     });
     content.appendChild(close);
 
 }
 
 const deleteFeatureListener = function(params) {
-    createMoveDeleteDropPopup(params.data, 'delete', this.notif);
+    createMoveDeleteDropPopup(params.data, 'delete');
 };
 
 
 const dropFeatureListener = function(params) {
     const featureLpq = params.data.id; 
-    createMoveDeleteDropPopup(featureLpq, 'drop', this.notif);
+    createMoveDeleteDropPopup(featureLpq, 'drop');
 };
 
 function createNotification(notifText, handler) {
@@ -1615,18 +1600,11 @@ function createNotification(notifText, handler) {
     content.appendChild(button);
 
     button.addEventListener('click', function() {
-        deleteNotification(popup, handler);
+        editFeatureModelSetup();
     });
 
     featureModificationBox.classList.remove('active');
     return popup;
-}
-
-function deleteNotification(notifPopup, handler) {
-    alert('delete');
-    notifPopup.remove();
-    myChart.off('click', handler);
-    if (handler == moveFeatureListener) { moveFeatureSetup(); }
 }
 
 function addFeatureToTree(parentLPQ, newFeatureLPQ) {

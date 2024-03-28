@@ -179,6 +179,14 @@ a:hover {
 
     transition: background-color 0.3s ease;
 }
+.edit-row button  {
+    display: flex; 
+    justify-content: center;
+    align-items: center;
+}
+.edit-row button span {
+    padding-left: 1vh;
+}
 
 .edit-row button:disabled {
     background-color: #b0a0d9;
@@ -644,5 +652,39 @@ a:hover {
   border-radius: 5px;
   box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
   pointer-events: auto; 
+}
 
+.modify-feature-popup-content .popup-input {
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    margin-right: 5px;
+}
+
+.modify-feature-popup-content button {
+    padding: 5px 10px;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-right: 10px;
+
+}
+.modify-feature-popup-content button.submit-btn {
+  background-color: #4CAF50;
+  border: 1px solid #4CAF50;
+}
+
+.modify-feature-popup-content button.close-btn {
+  color:black;  
+  border: 1px solid black;
+}
+
+
+.modify-feature-popup-content button:last-child {
+    margin-right: 0;
+}
+
+.popup-message {
+    margin-bottom: 10px;
 }
