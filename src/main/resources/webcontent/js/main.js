@@ -1532,6 +1532,7 @@ function createMoveDeleteDropPopup(feature, action, newParentFeature=null) {
     const message = document.createElement('p');
     message.className = 'popup-message';
     const button = document.createElement('button');
+    button.className = 'submit-btn';
     if (action == 'delete') {
         message.innerText = "Are you sure you want to delete feature " + featureLpq + "?";
         button.textContent = 'Delete';
@@ -1559,6 +1560,7 @@ function createMoveDeleteDropPopup(feature, action, newParentFeature=null) {
 
     const close = document.createElement('button');
     close.textContent = 'Close';
+    close.className = 'close-btn';
     close.addEventListener('click', function() {
         popup.remove();
         
