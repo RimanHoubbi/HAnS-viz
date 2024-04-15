@@ -1537,7 +1537,7 @@ function createMoveDeleteDropPopup(feature, action, newParentFeature=null) {
         message.innerText = "Are you sure you want to delete feature " + featureLpq + "?";
         button.textContent = 'Delete';
     } else if (action == 'drop') {
-        message.innerText = "Are you sure you want to drop feature " + featureLpq + "?";
+        message.innerText = "Are you sure you want to delete feature " + featureLpq + " with code ?";
         button.textContent = 'Drop';
     } else if (action == 'move') {
         message.innerText = "Are you sure you want to move feature " + featureLpq + " to " + newParentFeature + "?";
@@ -1548,9 +1548,9 @@ function createMoveDeleteDropPopup(feature, action, newParentFeature=null) {
         
         popup.remove();
         if (action == 'delete') {
-            deleteFeatureFromTree(featureLpq)
+            deleteFeatureFromTree(featureLpq);
         } else if (action == 'drop') {
-            // TODO
+            dropFeatureFromTree(featureLpq);
         } else if (action == 'move') {
             moveFeatureInTree(featureLpq, newParentFeature);
         }
@@ -1576,8 +1576,7 @@ const deleteFeatureListener = function(params) {
 
 
 const dropFeatureListener = function(params) {
-    const featureLpq = params.data.id; 
-    createMoveDeleteDropPopup(featureLpq, 'drop');
+    createMoveDeleteDropPopup(params.data, 'drop');
 };
 
 function createNotification(notifText, handler) {
@@ -1625,6 +1624,13 @@ function renameFeature(parentLPQ, newNameLPQ) {
 
 function deleteFeatureFromTree(featureLPQ) {
     let data = "deleteFeature" + "," + featureLPQ;
+    requestData(data, function() {
+        refreshData();
+    }, false);
+}
+
+function dropFeatureFromTree(featureLPQ) {
+    let data = "dropFeature" + "," + featureLPQ;
     requestData(data, function() {
         refreshData();
     }, false);

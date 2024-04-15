@@ -1,9 +1,14 @@
 package se.isselab.hansviz.browser.jshandler;
 
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
+import com.intellij.openapi.application.WriteActionAware;
 import com.intellij.openapi.command.WriteCommandAction;
+import com.intellij.openapi.wm.ToolWindow;
+import com.intellij.openapi.wm.ToolWindowManager;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
+import kotlinx.html.B;
 import se.isselab.HAnS.featureExtension.FeatureService;
 import se.isselab.HAnS.featureModel.psi.FeatureModelFeature;
 import se.isselab.HAnS.featureModel.psi.impl.FeatureModelFeatureImpl;
@@ -17,7 +22,10 @@ import org.cef.browser.CefBrowser;
 import org.cef.browser.CefFrame;
 import org.cef.callback.CefQueryCallback;
 import org.cef.handler.CefMessageRouterHandlerAdapter;
+import se.isselab.hansviz.browser.BrowserViewerService;
+import se.isselab.hansviz.browser.BrowserViewerWindow;
 
+import javax.swing.*;
 import java.util.Arrays;
 import java.util.List;
 
@@ -124,6 +132,43 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                 childFeature.deleteFeatureWithAnnotations();
                 callback.success("JSON");
                 return true;
+            }
+            case "dropFeature" -> {
+                FeatureModelFeature childFeature = getFeatureFromLPQ(requestTokens[1]);
+                if (childFeature == null) { return false; }
+
+//                BrowserViewerWindow browserViewerWindow = project.getService(BrowserViewerService.class).browserViewerWindow;
+//                System.out.println(browserViewerWindow);
+//                System.out.println(browserViewerWindow.isViewInit());
+//                System.out.println(browserViewerWindow.isToolWindowOpen());
+//                System.out.println(browserViewerWindow.isInitPlottingDone());
+//                System.out.println(browserViewerWindow.isBrowserReady());
+//                browserViewerWindow.setToolWindowOpen(false);
+//                System.out.println(browserViewerWindow.isToolWindowOpen());
+//                browserViewerWindow.getWebView().dispose();
+////                browserViewerWindow.getMenuBar().dispatchEvent();
+//                BrowserViewerService service = new BrowserViewerService(project);
+//                service.dispose();
+
+//                ToolWindowManager toolWindowManager = ToolWindowManager.getInstance(project);
+//                ToolWindow toolWindow = toolWindowManager.getToolWindow("HANS-Viz");
+//                toolWindow.hide();
+
+//                new Thread(() -> {
+//                    childFeature.deleteFeatureWithCode();
+//
+//                }).start();
+
+                try {
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                         childFeature.deleteFeatureWithCode();
+                    });
+                    callback.success("JSON");
+                    return true;
+                } catch (Exception ex) {
+                }
+                callback.failure(-1, "Could not delete feature with code");
+                return false;
             }
             case "moveFeature" -> {
                 FeatureModelFeature childFeature = getFeatureFromLPQ(requestTokens[1]);
