@@ -1050,9 +1050,11 @@ function requestData(option, callback, showLoading = true) {
             }
         },
         onFailure: function (error_code, error_message) {
-            alert("could not retrieve data for " + option + "  " + error_code + "  " + error_message)
-            if (callback != null) {
-                callback(error_code)
+            if (callback == null) {
+               alert("could not retrieve data for " + option + "  " + error_code + "  " + error_message)
+            }
+            if (callback != null && error_code != undefined && error_message != undefined) {
+                callback(error_code, error_message);
             }
             console.log(error_code, error_message);
             myChart.hideLoading();
@@ -1453,14 +1455,14 @@ function createAddRenamePopup(featureLpq, action) {
     button.className = 'submit-btn';
     button.textContent = 'Submit';
     button.addEventListener('click', function() {
-        if (input.value.length == 0 || input.value.trim().length == 0 || !featurePattern.test(input.value.trim())) {
-            error.innerText = "Feature name incorrect";
-            content.appendChild(error);
-            setTimeout(() => {
-                content.removeChild(error);
-            }, 5000);
-            return;
-        }
+//        if (input.value.length == 0 || input.value.trim().length == 0 || !featurePattern.test(input.value.trim())) {
+//            error.innerText = "Feature name incorrect";
+//            content.appendChild(error);
+//            setTimeout(() => {
+//                content.removeChild(error);
+//            }, 5000);
+//            return;
+//        }
         if (action == 'rename') {
             renameFeature(featureLpq, input.value);
         } else if (action == 'add') {
@@ -1545,7 +1547,6 @@ function createMoveDeleteDropPopup(feature, action, newParentFeature=null) {
     }
     content.appendChild(message);
     button.addEventListener('click', function() {
-        
         popup.remove();
         if (action == 'delete') {
             deleteFeatureFromTree(featureLpq);
@@ -1610,14 +1611,20 @@ function createNotification(notifText, handler) {
 
 function addFeatureToTree(parentLPQ, newFeatureLPQ) {
     let data = "addFeature" + "," + parentLPQ + "," + newFeatureLPQ;
-    requestData(data, function() {
+    requestData(data, function(code, msg) {
+        if (msg != undefined) {
+            alert(msg);
+        }
         refreshData();
     }, false);
 }
 
 function renameFeature(parentLPQ, newNameLPQ) {
     let data = "renameFeature" + "," + parentLPQ + "," + newNameLPQ;
-    requestData(data, function() {
+    requestData(data, function(code, msg) {
+        if (msg != undefined) {
+            alert(msg);
+        }
         refreshData();
     }, false);
 }
@@ -1638,7 +1645,10 @@ function dropFeatureFromTree(featureLPQ) {
 
 function moveFeatureInTree(featureLPQ, newParentFeature) {
     let data = "moveFeature" + "," + featureLPQ + "," + newParentFeature;
-    requestData(data, function() {
+    requestData(data, function(code, msg) {
+        if (msg != undefined) {
+            alert(msg);
+        }
         refreshData();
     }, false);
 }
