@@ -165,7 +165,6 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                         callback.failure(-3, "Parent " + parentLpq + " can't contain 2 child features with same LPQ " + childLpq);
                     }
                 }
-                System.out.println(result);
                 if (result==1) {
                     newParentFeature.moveFeatureWithChildren(childFeature);
                 }
