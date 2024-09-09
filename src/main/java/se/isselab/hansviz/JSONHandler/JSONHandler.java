@@ -20,58 +20,50 @@ import com.intellij.openapi.project.Project;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import org.cef.callback.CefQueryCallback;
-import se.isselab.HAnS.featureExtension.HAnSCallback;
-import se.isselab.HAnS.featureExtension.FeatureService;
+
+import org.jetbrains.annotations.NotNull;
 import se.isselab.HAnS.featureLocation.FeatureFileMapping;
 import se.isselab.HAnS.featureLocation.FeatureLocation;
 import se.isselab.HAnS.featureModel.psi.FeatureModelFeature;
-import se.isselab.HAnS.metrics.FeatureMetrics;
+import se.isselab.HAnS.metrics.ProjectMetrics;
+import se.isselab.HAnS.pluginExtensions.ProjectMetricsService;
+import se.isselab.HAnS.pluginExtensions.backgroundTasks.MetricsCallback;
 import se.isselab.hansviz.JSONHandler.pathFormatter.PathFormatter;
 
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 
 
-//TODO THESIS use featureService functions for the class
-
-public class JSONHandler implements HAnSCallback {
+public class JSONHandler implements MetricsCallback {
     private final CefQueryCallback callback;
     private final JSONType jsonType;
     private final Project project;
 
-    private final FeatureService featureService;
+    private final ProjectMetricsService featureService;
+
+    public enum JSONType {DEFAULT, TREE, TREEMAP, TANGLING}
 
     @Override
-    public void onComplete(FeatureMetrics featureMetrics) {
+    public void onComplete(ProjectMetrics featureMetrics) {
         JSONObject dataJSON = new JSONObject();
         JSONArray nodesJSON = new JSONArray();
         JSONArray linksJSON = new JSONArray();
-        HashMap<String, FeatureFileMapping> featureFileMappings = featureMetrics.getFeatureFileMappings();
-        HashMap<FeatureModelFeature, HashSet<FeatureModelFeature>> tanglingMap = featureMetrics.getTanglingMap();
+        Map<String, FeatureFileMapping> featureFileMappings = featureMetrics.getFeatureFileMappings();
+        Map<FeatureModelFeature, HashSet<FeatureModelFeature>> tanglingMap = featureMetrics.getTanglingMap();
 
         HashMap<FeatureModelFeature, Integer> featureToId = new HashMap<>();
         int counter = 0;
-        List<FeatureModelFeature> topLevelFeatures = null;
+        Optional<List<FeatureModelFeature>> topLevelFeatures = getFeatureModelFeatures();
 
-        if(jsonType == JSONType.Default || jsonType == JSONType.Tree || jsonType == JSONType.TreeMap)
-            topLevelFeatures = featureService.getRootFeatures();
-        // &begin[Tangling]
-        else if(jsonType == JSONType.Tangling)
-            topLevelFeatures = featureService.getFeatures();
-        // &end[Tangling]
-        else {
-            //return new JSONObject();
+        if(topLevelFeatures.isPresent()){
+            for(var feature : topLevelFeatures.get()){
+                JSONObject featureObj = featureToJSON(feature, featureFileMappings, tanglingMap);
+                nodesJSON.add(featureObj);
+                featureToId.put(feature, counter);
+                counter++;
+            }
         }
 
-
-        for(var feature : topLevelFeatures) {
-            JSONObject featureObj = featureToJSON(feature, featureFileMappings, tanglingMap);
-            nodesJSON.add(featureObj);
-            featureToId.put(feature, counter);
-            counter++;
-        }
 
 
         for(var featureToTangledFeatures : tanglingMap.entrySet()){
@@ -93,16 +85,23 @@ public class JSONHandler implements HAnSCallback {
         callback.success(dataJSON.toJSONString());
     }
 
-    public enum JSONType {Default, Tree, TreeMap, Tangling}
+    private @NotNull Optional<List<FeatureModelFeature>> getFeatureModelFeatures() {
+
+        return switch (jsonType) {
+            case DEFAULT, TREE, TREEMAP -> Optional.ofNullable(featureService.getRootFeatures());
+            case TANGLING -> Optional.ofNullable(featureService.getFeatures());
+        };
+    }
+
 
     public JSONHandler(Project project, JSONType type, CefQueryCallback callback) {
         this.project = project;
         this.jsonType = type;
         this.callback = callback;
-        featureService = project.getService(FeatureService.class);
-        featureService.getFeatureMetricsBackground(this);
+        featureService = project.getService(ProjectMetricsService.class);
+        featureService.getProjectMetricsBackground(this);
     }
-    // TODO: HAnS Annotation
+
     /**
      * Helperfunction to recursively create JSONObjects of features
      * Recursion takes place within the child property of the feature
@@ -110,13 +109,13 @@ public class JSONHandler implements HAnSCallback {
      * @param feature feature which should be converted to JSON
      * @return JSONObject of given feature
      */
-    private JSONObject featureToJSON(FeatureModelFeature feature, HashMap<String, FeatureFileMapping> featureFileMappings, HashMap<FeatureModelFeature, HashSet<FeatureModelFeature>> tanglingMap){
+    private JSONObject featureToJSON(FeatureModelFeature feature, Map<String, FeatureFileMapping> featureFileMappings, Map<FeatureModelFeature, HashSet<FeatureModelFeature>> tanglingMap){
         JSONObject obj = new JSONObject();
         obj.put("id", feature.getLPQText());
         obj.put("name", feature.getFeatureName());
-        var tangledFeatureMap = featureService.getTanglingMapOfFeature(tanglingMap, feature);
+        var tangledFeatureMap = featureService.getTanglingMapOfFeature((HashMap<FeatureModelFeature, HashSet<FeatureModelFeature>>) tanglingMap, feature);
         int tanglingDegree = tangledFeatureMap != null ? tangledFeatureMap.size() : 0;
-        FeatureFileMapping featureFileMapping = featureService.getFeatureFileMappingOfFeature(featureFileMappings, feature);
+        FeatureFileMapping featureFileMapping = featureService.getFeatureFileMappingOfFeature((HashMap<String, FeatureFileMapping>) featureFileMappings, feature);
         List<FeatureModelFeature> childFeatureList = featureService.getChildFeatures(feature);
 
         //recursively get all child features
@@ -128,11 +127,9 @@ public class JSONHandler implements HAnSCallback {
         obj.put("children", childArr);
         obj.put("tanglingDegree", tanglingDegree);
         obj.put("scatteringDegree", featureService.getFeatureScattering(featureFileMapping));
-/*
-        obj.put("lines", featureFileMappings.get(feature.getLPQText()).getTotalFeatureLineCount());
-*/
+
         obj.put("lines", featureService.getTotalFeatureLineCount(featureFileMapping));
-        obj.put("totalLines", getTotalLineCountWithChilds(feature, featureFileMappings));
+        obj.put("totalLines", getTotalLineCountWithChilds(feature, (HashMap<String, FeatureFileMapping>) featureFileMappings));
 
         //put locations and their line count into array
         JSONArray locations = new JSONArray();
@@ -148,7 +145,7 @@ public class JSONHandler implements HAnSCallback {
             }
             //get the linecount of a feature for each file and add it
             JSONObject locationObj = new JSONObject();
-            if(featureService.isFeatureInFeatureFileMappings(featureFileMappings,feature)){
+            if(featureFileMappings.containsKey(feature.getLPQText())){
                 locationObj.put("lines", featureService.getFeatureLineCountInFile(featureFileMapping, featureLocation));
             }
             else{

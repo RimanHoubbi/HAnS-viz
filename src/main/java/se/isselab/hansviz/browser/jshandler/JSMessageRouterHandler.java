@@ -1,6 +1,6 @@
 package se.isselab.hansviz.browser.jshandler;
 
-import se.isselab.HAnS.featureExtension.FeatureService;
+import se.isselab.HAnS.pluginExtensions.FeatureHighlighterService;
 import se.isselab.hansviz.JSONHandler.JSONHandler;
 
 import com.intellij.openapi.project.Project;
@@ -31,8 +31,6 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
         this.project = project;
     }
 
-    //private final FeatureService service = ProjectManager.getInstance().getOpenProjects()[0].getService(FeatureService.class);
-
     // &begin[Request]
 
     /**
@@ -61,18 +59,18 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
             case "tangling" -> {
 
                 // creates new JSONHandler for Tangling Graph
-                new JSONHandler(project, JSONHandler.JSONType.Tangling, callback);
+                new JSONHandler(project, JSONHandler.JSONType.TANGLING, callback);
                 return true;
             }
             case "tree" -> {
-                new JSONHandler(project, JSONHandler.JSONType.Tree, callback);
+                new JSONHandler(project, JSONHandler.JSONType.TREE, callback);
                 return true;
             }
             case "highlightFeature" -> {
                 if(requestTokens.length < 2)
                     return false;
 
-                FeatureService featureService = project.getService(FeatureService.class);
+                FeatureHighlighterService featureService = project.getService(FeatureHighlighterService.class);
                 if(featureService == null)
                     return false;
 
@@ -84,7 +82,8 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
             case "openPath" -> {
                 if(requestTokens.length < 2)
                     return false;
-                FeatureService featureService = project.getService(FeatureService.class);
+                FeatureHighlighterService featureService = project.getService(FeatureHighlighterService.class);
+
                 if(featureService == null)
                     return false;
                 if(requestTokens.length>=4){
@@ -94,8 +93,10 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                 callback.success("");
                 return true;
             }
+            default -> {
+                return false;
+            }
         }
-        return false;
     }
     // &end[Request]
 }
