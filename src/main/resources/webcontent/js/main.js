@@ -1323,49 +1323,6 @@ function toggleSubmenu(event) {
     submenu.classList.toggle('active');
 }
 
-// Function to filter data by selected time period
-function filterByTimePeriod() {
-    const selectedPeriod = document.getElementById('timePeriodSelect').value;
-
-    let filteredData = seriesData; // Assuming seriesData holds all your data points
-
-    if (selectedPeriod !== 'all') {
-        const currentDate = new Date();
-        let filterDate;
-
-        switch (selectedPeriod) {
-            case 'last7days':
-                filterDate = new Date(currentDate.setDate(currentDate.getDate() - 7));
-                break;
-            case 'last30days':
-                filterDate = new Date(currentDate.setDate(currentDate.getDate() - 30));
-                break;
-            case 'lastYear':
-                filterDate = new Date(currentDate.setFullYear(currentDate.getFullYear() - 1));
-                break;
-        }
-
-        // Filter seriesData based on the selected period
-        filteredData = seriesData.filter(point => {
-            const commitDate = new Date(point.commitTime);
-            return commitDate >= filterDate;
-        });
-    }
-
-    // Update the chart with the filtered data
-    updateChartData(filteredData);
-}
-
-// Function to update the chart data
-function updateChartData(filteredData) {
-    console.log('Updating Chart with Data:', filteredData); // Add this line for debugging
-    state.timelineChart.setOption({
-        series: [{
-            data: filteredData
-        }]
-    });
-}
-
 // Debounce Function: Prevents a function from being called repeatedly within a short time
 function debounce(func, wait) {
     let timeout;
@@ -1426,9 +1383,6 @@ function handleFeatureHistoryData() {
             }
         };
     });
-
-
-
     // Use the new chart container ID
     const chartDom = document.getElementById('timelineChart');
 
@@ -1656,7 +1610,6 @@ const customTheme = {
 
 // Register the custom theme with ECharts
 echarts.registerTheme('customTheme', customTheme);
-
 
 // handle the deleted features data and render the table
 function handleDeletedFeaturesData() {
