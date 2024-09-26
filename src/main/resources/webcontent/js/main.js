@@ -1317,6 +1317,10 @@ function openTreeView() {
 
 // &begin[FeatureHistory]
 
+let seriesData = [];      // All data points
+let allSeriesData = [];   // Copy of all data points for filtering
+let filteredData = [];    // Currently displayed data points
+
 function toggleSubmenu(event) {
     event.preventDefault();
     const submenu = event.currentTarget.parentElement;
@@ -1335,16 +1339,69 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
+// Function to create the filter panel UI
+function createFeatureFilterPanel(features) {
+    const featureCheckboxesDiv = document.getElementById('featureCheckboxes');
 
+    features.forEach((feature, index) => {
+        const checkboxId = `featureCheckbox_${index}`;
+
+        const label = document.createElement('label');
+        label.setAttribute('for', checkboxId);
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = checkboxId;
+        checkbox.value = feature;
+        checkbox.checked = true; // Default to all features selected
+
+        checkbox.addEventListener('change', handleFeatureSelection);
+
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(feature));
+
+        featureCheckboxesDiv.appendChild(label);
+    });
+}
+
+// Function to initialize event listeners for the filter panel
+function initializeFeatureFilterPanel() {
+    // Toggle Filter Panel Visibility
+    const toggleButton = document.getElementById('toggleFilterPanel');
+    const filterContent = document.getElementById('filterContent');
+
+    toggleButton.addEventListener('click', () => {
+        if (filterContent.classList.contains('show')) {
+            filterContent.classList.remove('show');
+            filterContent.classList.add('hide');
+        } else {
+            filterContent.classList.remove('hide');
+            filterContent.classList.add('show');
+        }
+    });
+}
 
 // Logic to build and display the Feature History view
 function openFeatureTimelineView() {
     if (!state.isInitialized) return;
 
     const contentDiv = document.getElementById('featureHistoryContent');
-    contentDiv.innerHTML = '<div id="timelineChart" style="width: 100%; height: calc(100vh - 150px);"></div>';
+    contentDiv.innerHTML = `
+        <!-- Feature Filter Panel -->
+        <div id="featureFilterPanel" class="feature-filter-panel">
+            <button id="toggleFilterPanel" class="toggle-filter-button">☰ Select Features</button>
+            <div id="filterContent" class="filter-content hide">
+                <h3>Select Features</h3>
+                <div id="featureCheckboxes" class="feature-checkboxes">
+                    <!-- Dynamically populated checkboxes will go here -->
+                </div>
+            </div>
+        </div>
+        <!-- Timeline Chart -->
+        <div id="timelineChart" style="width: 100%; height: calc(100vh - 150px);"></div>
+    `;
 
-    requestData('featureHistory', function() {
+    requestData('featureHistory', function () {
         handleFeatureHistoryData();  // Renders the timeline chart
         state.currentChart = state.featureTimelineView;
     });
@@ -1356,7 +1413,7 @@ function openDeletedFeaturesView() {
     const contentDiv = document.getElementById('featureHistoryContent');
     contentDiv.innerHTML = ''; // Clear previous content
 
-    requestData('featureHistory', function() {
+    requestData('featureHistory', function () {
         handleDeletedFeaturesData(); // Renders the deleted features table
         state.currentChart = state.deletedFeaturesView;
     });
@@ -1369,7 +1426,7 @@ function handleFeatureHistoryData() {
     const features = data.features;
     const commits = data.commits;
 
-    const seriesData = data.seriesData.map(point => {
+    seriesData = data.seriesData.map(point => {
         return {
             value: [point.featureIndex, point.commitIndex],
             name: features[point.featureIndex], // Retrieve the name from features array
@@ -1383,11 +1440,14 @@ function handleFeatureHistoryData() {
             }
         };
     });
-    // Use the new chart container ID
-    const chartDom = document.getElementById('timelineChart');
+
+    // Assign master data
+    allSeriesData = [...seriesData];
+    filteredData = [...allSeriesData]; // Initially, all data is displayed
 
     // Initialize the chart and store it in state
-    state.timelineChart = echarts.init(chartDom, 'customTheme'); // Applying the custom theme
+    const chartDom = document.getElementById('timelineChart');
+    state.timelineChart = echarts.init(chartDom, 'customTheme');
 
     // Define the chart options
     const options = {
@@ -1450,6 +1510,8 @@ function handleFeatureHistoryData() {
             name: 'Features',
             type: 'scatter',
             data: seriesData,
+            large: true, // Enable large mode
+            largeThreshold: 2000,
             symbolSize: 12,
             selectedMode: 'single', // Enables single selection. Use 'multiple' for multiple selections.
             emphasis: {
@@ -1490,7 +1552,7 @@ function handleFeatureHistoryData() {
                 start: 0,
                 end: 100,
                 bottom: 1,        // Place the x-axis data zoom slider below the x-axis
-                height: 20,        // Set the height of the slider
+                height: 20,
                 backgroundColor: customTheme.dataZoom.backgroundColor,
                 fillerColor: customTheme.dataZoom.fillerColor,
                 handleColor: customTheme.dataZoom.handleColor,
@@ -1524,7 +1586,14 @@ function handleFeatureHistoryData() {
 
     // Set and display the chart options
     state.timelineChart.setOption(options);
-    // Click Event Handler with Debouncing (300ms delay)
+
+    // Create the feature filter panel
+    createFeatureFilterPanel(features);
+
+    // Initialize event listeners for the filter panel
+    initializeFeatureFilterPanel();
+
+    // Click Event Handler with Debouncing (400ms delay)
     state.timelineChart.on('click', debounce(function (params) {
         if (params.componentType === 'series' && params.seriesType === 'scatter') {
             const commitHash = params.data.commitHash;
@@ -1536,7 +1605,7 @@ function handleFeatureHistoryData() {
                 showNotification('Commit hash is undefined.');
             }
         }
-    }, 400));  // 10s debounce
+    }, 400));
 
 
     if (!state.resizeListenerAdded) {
@@ -1546,6 +1615,118 @@ function handleFeatureHistoryData() {
         state.resizeListenerAdded = true; // Prevent adding multiple listeners
     }
 }
+
+
+// handle the deleted features data and render the table
+function handleDeletedFeaturesData() {
+    const deletedFeatures = jsonData.deletedFeaturesData;
+
+    // Build HTML content
+    const deletedFeaturesDiv = document.getElementById('featureHistoryContent');
+    let htmlContent = '<h2>Deleted Features</h2>';
+    htmlContent += '<table class="deleted-features-table">';
+    htmlContent += '<tr><th>Feature Name</th><th>Last Commit Time</th><th>Commit Hash</th></tr>';
+
+    deletedFeatures.forEach(feature => {
+        const fullHash = feature.commitHash;
+        const truncatedHash = fullHash.substring(0, 7); // Shorten hash for display
+        const lastCommitTime = feature.lastCommitTime;
+
+        // Add the HTML content for this feature
+        htmlContent += `
+            <tr>
+                <td>${feature.featureName}</td>
+                <td>${lastCommitTime}</td>
+                <td title="Click to copy full hash" onclick="copyToClipboard('${fullHash}')">${truncatedHash}</td>
+            </tr>`;
+    });
+
+    htmlContent += '</table>';
+    deletedFeaturesDiv.innerHTML = htmlContent;
+}
+
+// Handle feature selection changes
+function handleFeatureSelection() {
+    const selectedFeatures = getSelectedFeatures();
+    filterFeatures(selectedFeatures);
+}
+
+// Get list of selected features
+function getSelectedFeatures() {
+    const checkboxes = document.querySelectorAll('#featureCheckboxes input[type="checkbox"]');
+    const selected = [];
+    checkboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+            selected.push(checkbox.value);
+        }
+    });
+    return selected;
+}
+
+// Filter features and update the chart
+function filterFeatures(selectedFeatures) {
+    if (selectedFeatures.length === 0) {
+        // If no features selected, clear the chart
+        state.timelineChart.setOption({
+            xAxis: {
+                data: []
+            },
+            series: [{
+                data: []
+            }]
+        });
+        return;
+    }
+
+    // Filter the allSeriesData to include only selected features
+    const selectedFeatureIndices = selectedFeatures.map(feature => {
+        return jsonData.featureHistoryData.features.indexOf(feature);
+    }).filter(index => index !== -1); // Remove any invalid indices
+
+    // If some features are not found, log a warning
+    if (selectedFeatureIndices.length !== selectedFeatures.length) {
+        console.warn('Some selected features were not found in the data.');
+    }
+
+    // Update the xAxis categories to include only selected features
+    const filteredFeatures = selectedFeatures.filter(feature => {
+        return jsonData.featureHistoryData.features.includes(feature);
+    });
+
+    // Create a mapping from old featureIndex to new featureIndex
+    const oldToNewIndexMap = {};
+    filteredFeatures.forEach((feature, newIndex) => {
+        const oldIndex = jsonData.featureHistoryData.features.indexOf(feature);
+        oldToNewIndexMap[oldIndex] = newIndex;
+    });
+
+    // Filter and remap the series data
+    const newSeriesData = allSeriesData.filter(point => {
+        return selectedFeatureIndices.includes(point.value[0]);
+    }).map(point => {
+        return {
+            value: [oldToNewIndexMap[point.value[0]], point.value[1]],
+            name: point.name,
+            commitTime: point.commitTime,
+            commitHash: point.commitHash,
+            category: point.category,
+            symbol: 'circle',
+            symbolSize: 10,
+            itemStyle: point.itemStyle
+        };
+    });
+
+    // Update the chart's xAxis and series data
+    state.timelineChart.setOption({
+        xAxis: {
+            data: filteredFeatures
+        },
+        series: [{
+            data: newSeriesData
+        }]
+    });
+}
+
 
 // Define the custom theme
 const customTheme = {
@@ -1611,35 +1792,6 @@ const customTheme = {
 // Register the custom theme with ECharts
 echarts.registerTheme('customTheme', customTheme);
 
-// handle the deleted features data and render the table
-function handleDeletedFeaturesData() {
-    const deletedFeatures = jsonData.deletedFeaturesData;
-
-    // Build HTML content
-    const deletedFeaturesDiv = document.getElementById('featureHistoryContent');
-    let htmlContent = '<h2>Deleted Features</h2>';
-    htmlContent += '<table class="deleted-features-table">';
-    htmlContent += '<tr><th>Feature Name</th><th>Last Commit Time</th><th>Commit Hash</th></tr>';
-
-    deletedFeatures.forEach(feature => {
-        const fullHash = feature.commitHash;
-        const truncatedHash = fullHash.substring(0, 7); // Shorten hash for display
-        const lastCommitTime = feature.lastCommitTime;
-
-        // Add the HTML content for this feature
-        htmlContent += `
-            <tr>
-                <td>${feature.featureName}</td>
-                <td>${lastCommitTime}</td>
-                <td title="Click to copy full hash" onclick="copyToClipboard('${fullHash}')">${truncatedHash}</td>
-            </tr>`;
-    });
-
-    htmlContent += '</table>';
-    deletedFeaturesDiv.innerHTML = htmlContent;
-}
-
-// Function to copy text to clipboard
 function copyToClipboard(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
