@@ -1,6 +1,7 @@
 package se.isselab.hansviz.browser.jshandler;
 
 import se.isselab.HAnS.pluginExtensions.FeatureHighlighterService;
+import se.isselab.hansviz.JSONHandler.FeatureHistoryJSONHandler;
 import se.isselab.hansviz.JSONHandler.JSONHandler;
 
 import com.intellij.openapi.project.Project;
@@ -8,6 +9,10 @@ import org.cef.browser.CefBrowser;
 import org.cef.browser.CefFrame;
 import org.cef.callback.CefQueryCallback;
 import org.cef.handler.CefMessageRouterHandlerAdapter;
+import se.isselab.HAnS.featureHistoryView.FeatureCommitMapper;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /*
 Copyright 2024 David Stechow & Philipp Kusmierz
@@ -66,6 +71,7 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                 new JSONHandler(project, JSONHandler.JSONType.TREE, callback);
                 return true;
             }
+
             case "highlightFeature" -> {
                 if(requestTokens.length < 2)
                     return false;
@@ -93,10 +99,15 @@ public class JSMessageRouterHandler extends CefMessageRouterHandlerAdapter {
                 callback.success("");
                 return true;
             }
+            case "featureHistory" -> {
+                new FeatureHistoryJSONHandler(project, callback, FeatureHistoryJSONHandler.JSONType.FEATURE_HISTORY );
+                return true;
+            }
             default -> {
                 return false;
             }
         }
+
     }
     // &end[Request]
 }

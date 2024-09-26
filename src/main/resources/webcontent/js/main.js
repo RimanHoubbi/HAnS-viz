@@ -38,8 +38,8 @@ const searchBox = document.querySelector(".search-box"),
     caseSensitiveCheckBox = document.getElementById("caseSensitiveCheckBox");
 
 /* last Fetch Timestamp */
-const lastFetchTimestamp = document.querySelector(".last-fetch-timestamp");    
-    
+const lastFetchTimestamp = document.querySelector(".last-fetch-timestamp");
+
 /* feature info window elements */
 const featureInfoBtn = document.querySelector(".feature-info-button"),
     featureInfoPanel = document.querySelector(".feature-info-panel"),
@@ -81,7 +81,11 @@ const state = {
     showTanglingAsNormalGraph: false,
     isAutoFetch: false,
     fetchIntervall: 600000,
-    isSwitching: false
+    isSwitching: false,
+    featureTimelineView: 3,   // New identifier for Features Timeline View
+    deletedFeaturesView: 4,   // New identifier for Deleted Features View
+    timelineChart: null,
+    resizeListenerAdded: false,
 }
 
 const intervallFunctions = {
@@ -91,7 +95,9 @@ const intervallFunctions = {
 
 const jsonData = {
     tanglingData: "",
-    treeData: ""
+    treeData: "",
+    featureHistoryData: "",
+    deletedFeaturesData: ""
 }
 
 // Initialize dark mode here
@@ -234,7 +240,7 @@ featureInfoSideBar.addEventListener("click", () => {
     else {
         featureInfoBtn.textContent = "keyboard_double_arrow_right";
     }
-    
+
 });
 // &end[FeatureInfoWindow]
 // &begin[Scattering]
@@ -650,6 +656,18 @@ function toggleTheme() {
             toggleChart(state.tanglingChart, true);
             break;
         }
+        case state.featureHistoryView: {
+            toggleChart(state.featureHistoryView, true);
+            break;
+        }
+        case state.featureTimelineView: {
+            toggleChart(state.featureTimelineView, true);
+            break;
+        }
+        case state.deletedFeaturesView: {
+            toggleChart(state.deletedFeaturesView, true);
+            break;
+        }
         default:
             toggleChart(state.treeChart, true);
     }
@@ -668,6 +686,14 @@ function refresh() {
         }
         case state.tanglingChart: {
             toggleChart(state.tanglingChart, true);
+            break;
+        }
+        case state.featureTimelineView: {
+            toggleChart(state.featureTimelineView, true);
+            break;
+        }
+        case state.deletedFeaturesView: {
+            toggleChart(state.deletedFeaturesView, true);
             break;
         }
         default:
@@ -723,25 +749,47 @@ function toggleChart(chart, forceReload = false){
     if(!forceReload && chart === state.currentChart){
         return;
     }
+    // Get references to the main and feature history content divs
+    const mainDiv = document.getElementById('main');
+    const featureHistoryContent = document.getElementById('featureHistoryContent');
+
+    // Hide both divs initially
+    mainDiv.style.display = 'none';
+    featureHistoryContent.style.display = 'none';
+
     switch(chart){
         case state.treeMapChart:{
+            mainDiv.style.display = 'block';
             openTreemapView();
             state.currentChart = state.treeMapChart;
             break;
         }
         case state.treeChart:{
+            mainDiv.style.display = 'block';
             openTreeView();
             state.currentChart = state.treeChart;
             break;
         }
         case state.tanglingChart:{
+            mainDiv.style.display = 'block';
             openTanglingView();
             state.currentChart = state.tanglingChart;
             break;
         }
+        case state.featureTimelineView: {
+            featureHistoryContent.style.display = 'block';
+            openFeatureTimelineView();
+            state.currentChart = state.featureTimelineView;
+            break;
+        }
+        case state.deletedFeaturesView: {
+            featureHistoryContent.style.display = 'block';
+            openDeletedFeaturesView();
+            state.currentChart = state.deletedFeaturesView;
+            break;
+        }
     }
     state.isSwitching = true;
-
 }
 
 function updateFetchIntervall(newIntervall){
@@ -980,6 +1028,7 @@ function requestData(option, callback, showLoading = true) {
 
 // &begin[Request]
 function handleData(option, response) {
+    const data = JSON.parse(response);
     switch (option) {
         case "refresh":
             // handle refresh data
@@ -994,7 +1043,12 @@ function handleData(option, response) {
         case "treeMap":
             jsonData.treeData = JSON.parse(response);
             break;
+        case "featureHistory":
+            jsonData.featureHistoryData = JSON.parse(response);  // Parsed data stored here
+            jsonData.deletedFeaturesData = JSON.parse(response).deletedFeatures; // Store deleted features data
+            break;
     }
+
 }
 
 // &end[Request]
@@ -1260,6 +1314,424 @@ function openTreeView() {
 }
 
 // &end[Tree]
+
+// &begin[FeatureHistory]
+
+function toggleSubmenu(event) {
+    event.preventDefault();
+    const submenu = event.currentTarget.parentElement;
+    submenu.classList.toggle('active');
+}
+
+// Function to filter data by selected time period
+function filterByTimePeriod() {
+    const selectedPeriod = document.getElementById('timePeriodSelect').value;
+
+    let filteredData = seriesData; // Assuming seriesData holds all your data points
+
+    if (selectedPeriod !== 'all') {
+        const currentDate = new Date();
+        let filterDate;
+
+        switch (selectedPeriod) {
+            case 'last7days':
+                filterDate = new Date(currentDate.setDate(currentDate.getDate() - 7));
+                break;
+            case 'last30days':
+                filterDate = new Date(currentDate.setDate(currentDate.getDate() - 30));
+                break;
+            case 'lastYear':
+                filterDate = new Date(currentDate.setFullYear(currentDate.getFullYear() - 1));
+                break;
+        }
+
+        // Filter seriesData based on the selected period
+        filteredData = seriesData.filter(point => {
+            const commitDate = new Date(point.commitTime);
+            return commitDate >= filterDate;
+        });
+    }
+
+    // Update the chart with the filtered data
+    updateChartData(filteredData);
+}
+
+// Function to update the chart data
+function updateChartData(filteredData) {
+    console.log('Updating Chart with Data:', filteredData); // Add this line for debugging
+    state.timelineChart.setOption({
+        series: [{
+            data: filteredData
+        }]
+    });
+}
+
+// Debounce Function: Prevents a function from being called repeatedly within a short time
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func.apply(this, args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+
+// Logic to build and display the Feature History view
+function openFeatureTimelineView() {
+    if (!state.isInitialized) return;
+
+    const contentDiv = document.getElementById('featureHistoryContent');
+    contentDiv.innerHTML = '<div id="timelineChart" style="width: 100%; height: calc(100vh - 150px);"></div>';
+
+    requestData('featureHistory', function() {
+        handleFeatureHistoryData();  // Renders the timeline chart
+        state.currentChart = state.featureTimelineView;
+    });
+}
+
+function openDeletedFeaturesView() {
+    if (!state.isInitialized) return;
+
+    const contentDiv = document.getElementById('featureHistoryContent');
+    contentDiv.innerHTML = ''; // Clear previous content
+
+    requestData('featureHistory', function() {
+        handleDeletedFeaturesData(); // Renders the deleted features table
+        state.currentChart = state.deletedFeaturesView;
+    });
+}
+
+// Function to handle the feature history data and render the chart
+function handleFeatureHistoryData() {
+    const data = jsonData.featureHistoryData;
+
+    const features = data.features;
+    const commits = data.commits;
+
+    const seriesData = data.seriesData.map(point => {
+        return {
+            value: [point.featureIndex, point.commitIndex],
+            name: features[point.featureIndex], // Retrieve the name from features array
+            commitTime: commits[point.commitIndex], // Retrieve the commit time
+            commitHash: point.commitHash, // Commit Hash
+            category: point.category || 'default',// For color categorization
+            symbol: 'circle',
+            symbolSize: 10,
+            itemStyle: {
+                color: '#5470c6' // Default color for current features
+            }
+        };
+    });
+
+
+
+    // Use the new chart container ID
+    const chartDom = document.getElementById('timelineChart');
+
+    // Initialize the chart and store it in state
+    state.timelineChart = echarts.init(chartDom, 'customTheme'); // Applying the custom theme
+
+    // Define the chart options
+    const options = {
+        backgroundColor: customTheme.backgroundColor,
+        color: customTheme.color, // Use theme's color palette
+        title: {
+            text: 'Feature History Timeline',
+            left: 'center',
+            textStyle: customTheme.title.textStyle
+        },
+        tooltip: {
+            trigger: 'item',
+            formatter: function (params) {
+                const featureName = features[params.value[0]];
+                const commitTime = commits[params.value[1]];
+                return `Feature: ${featureName}<br>Commit Time: ${commitTime}`;
+            }
+        },
+        grid: {
+            left: 150,     // Increase left margin to prevent y-axis labels from being cut off
+            right: 60,     // Optional: Adjust right margin if needed
+            bottom: 100,   // Increase bottom margin to make space for data zoom sliders
+            top: 80 ,       // Optional: Adjust top margin if needed
+            textStyle: customTheme.title.textStyle
+        },
+        xAxis: {
+            type: 'category',
+            name: 'Features',
+            data: features,
+            axisLabel: {
+                interval: 0,
+                rotate: 45,
+                fontSize: 12,
+                color:  customTheme.textStyle.color,
+            },
+            axisLine: {
+                lineStyle: {
+                    color:customTheme.grid.borderColor
+                }
+            }
+        },
+        yAxis: {
+            type: 'category',
+            name: 'Commits',
+            data: commits,
+            axisLabel: {
+                formatter: function (value) {
+                    return value;
+                },
+                fontSize: 12,
+                color: customTheme.textStyle.color,
+            },
+            axisLine: {
+                lineStyle: {
+                    color: customTheme.grid.borderColor
+                }
+            }
+        },
+        series: [{
+            name: 'Features',
+            type: 'scatter',
+            data: seriesData,
+            symbolSize: 12,
+            selectedMode: 'single', // Enables single selection. Use 'multiple' for multiple selections.
+            emphasis: {
+                focus: 'series',
+                label: {
+                    show: true,
+                    formatter: '{b}',
+                    fontSize: 14,
+                    color: '#fff',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    borderRadius: 4,
+                    padding: [2, 4]
+                },
+                itemStyle: {
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                    shadowBlur: 10,
+                    shadowColor: 'rgba(0,0,0,0.5)'
+                }
+            },
+            itemStyle: {
+                color: function (params) {
+                    // Assign colors based on category or other attributes
+                    const categoryColors = {
+                        'critical': '#e74c3c',
+                        'normal': '#2ecc71',
+                        'minor': '#f1c40f',
+                        'default': '#5E42A6' // Using your primary color
+                    };
+                    return categoryColors[params.data.category] || '#5E42A6';
+                }
+            }
+        }],
+        dataZoom: [
+            {
+                type: 'slider',
+                xAxisIndex: 0,
+                start: 0,
+                end: 100,
+                bottom: 1,        // Place the x-axis data zoom slider below the x-axis
+                height: 20,        // Set the height of the slider
+                backgroundColor: customTheme.dataZoom.backgroundColor,
+                fillerColor: customTheme.dataZoom.fillerColor,
+                handleColor: customTheme.dataZoom.handleColor,
+                handleIcon: 'M8.7,0.5c-1.8,0-3.3,1.5-3.3,3.3v12.3c0,1.8,1.5,3.3,3.3,3.3h1.5v-19H8.7z', // Optional: Customize handle icon
+                handleSize: '80%', // Optional: Customize handle size
+            },
+            {
+                type: 'slider',
+                yAxisIndex: 0,
+                start: 0,
+                end: 100,
+                right: 20,         // Place the y-axis data zoom slider to the right
+                width: 20,         // Set the width of the slider
+                top: 30,
+                orient: 'vertical' // Keep vertical orientation
+            },
+            {
+                type: 'inside',
+                xAxisIndex: 0,
+                start: 0,
+                end: 100
+            },
+            {
+                type: 'inside',
+                yAxisIndex: 0,
+                start: 0,
+                end: 100
+            }
+        ]
+    };
+
+    // Set and display the chart options
+    state.timelineChart.setOption(options);
+    // Click Event Handler with Debouncing (300ms delay)
+    state.timelineChart.on('click', debounce(function (params) {
+        if (params.componentType === 'series' && params.seriesType === 'scatter') {
+            const commitHash = params.data.commitHash;
+
+            if (commitHash && commitHash !== "Unknown Commit Hash") {
+                copyToClipboard(commitHash);
+                showNotification('Commit hash copied to clipboard!');
+            } else {
+                showNotification('Commit hash is undefined.');
+            }
+        }
+    }, 400));  // 10s debounce
+
+
+    if (!state.resizeListenerAdded) {
+        window.addEventListener('resize', function () {
+            state.timelineChart.resize();
+        });
+        state.resizeListenerAdded = true; // Prevent adding multiple listeners
+    }
+}
+
+// Define the custom theme
+const customTheme = {
+    color: [
+        '#5E42A6', // Primary color
+        '#8367D7', // Light Purple
+        '#3B2A60', // Dark Purple
+        '#A08CF8', // Lavender
+        '#BFA5FF'  // Soft Purple
+    ],
+    backgroundColor: '#ffffff', // Light background
+    textStyle: {
+        fontFamily: 'Arial, sans-serif',
+        color: '#333' // Default text color
+    },
+    title: {
+        textStyle: {
+            color: '#5E42A6',
+            fontSize: 18,
+            fontWeight: 'bold'
+        }
+    },
+    tooltip: {
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderColor: '#5E42A6',
+        borderWidth: 1,
+        textStyle: {
+            color: '#333'
+        }
+    },
+    legend: {
+        textStyle: {
+            color: '#333'
+        },
+        icon: 'circle'
+    },
+    grid: {
+        borderColor: '#ddd'
+    },
+    toolbox: {
+        iconStyle: {
+            borderColor: '#5E42A6'
+        }
+    },
+    dataZoom: {
+        backgroundColor: '#f0f0f0',
+        fillerColor: '#5E42A6',
+        handleColor: '#8367D7'
+    },
+    axisPointer: {
+        lineStyle: {
+            color: '#5E42A6'
+        },
+        crossStyle: {
+            color: '#5E42A6'
+        },
+        label: {
+            backgroundColor: '#5E42A6'
+        }
+    },
+};
+
+// Register the custom theme with ECharts
+echarts.registerTheme('customTheme', customTheme);
+
+
+// handle the deleted features data and render the table
+function handleDeletedFeaturesData() {
+    const deletedFeatures = jsonData.deletedFeaturesData;
+
+    // Build HTML content
+    const deletedFeaturesDiv = document.getElementById('featureHistoryContent');
+    let htmlContent = '<h2>Deleted Features</h2>';
+    htmlContent += '<table class="deleted-features-table">';
+    htmlContent += '<tr><th>Feature Name</th><th>Last Commit Time</th><th>Commit Hash</th></tr>';
+
+    deletedFeatures.forEach(feature => {
+        const fullHash = feature.commitHash;
+        const truncatedHash = fullHash.substring(0, 7); // Shorten hash for display
+        const lastCommitTime = feature.lastCommitTime;
+
+        // Add the HTML content for this feature
+        htmlContent += `
+            <tr>
+                <td>${feature.featureName}</td>
+                <td>${lastCommitTime}</td>
+                <td title="Click to copy full hash" onclick="copyToClipboard('${fullHash}')">${truncatedHash}</td>
+            </tr>`;
+    });
+
+    htmlContent += '</table>';
+    deletedFeaturesDiv.innerHTML = htmlContent;
+}
+
+// Function to copy text to clipboard
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification('Commit hash copied to clipboard');
+        }, () => {
+            showNotification('Failed to copy commit hash');
+        });
+    } else {
+        fallbackCopyToClipboard(text);
+    }
+}
+
+// Fallback for older browsers
+function fallbackCopyToClipboard(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';  // Prevent scrolling to bottom of page in Microsoft Edge.
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    try {
+        const successful = document.execCommand('copy');
+        const msg = successful ? 'Commit hash copied to clipboard' : 'Failed to copy commit hash';
+        showNotification(msg);
+    } catch (err) {
+        showNotification('Failed to copy commit hash');
+    }
+
+    document.body.removeChild(textarea);
+}
+
+// show notifications
+function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.innerText = message;
+    document.body.appendChild(notification);
+    setTimeout(() => {
+        document.body.removeChild(notification);
+    }, 2000);
+}
+
+// &end[FeatureHistory]
+
 
 //helper function for the treemap
 // &begin[TreeMap]

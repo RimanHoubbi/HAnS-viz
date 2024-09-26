@@ -16,12 +16,14 @@ limitations under the License.
 
 package se.isselab.hansviz.JSONHandler;
 
+import com.google.gson.Gson;
 import com.intellij.openapi.project.Project;
 import net.minidev.json.JSONArray;
 import net.minidev.json.JSONObject;
 import org.cef.callback.CefQueryCallback;
 
 import org.jetbrains.annotations.NotNull;
+import se.isselab.HAnS.featureHistoryView.FeatureCommitMapper;
 import se.isselab.HAnS.featureLocation.FeatureFileMapping;
 import se.isselab.HAnS.featureLocation.FeatureLocation;
 import se.isselab.HAnS.featureModel.psi.FeatureModelFeature;
@@ -188,4 +190,6 @@ public class JSONHandler implements MetricsCallback {
             total += featureService.getTotalFeatureLineCount(parentFileMapping);
         return total;
     }
+
+
 }

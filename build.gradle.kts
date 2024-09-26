@@ -24,6 +24,7 @@ repositories {
 // Dependencies are managed with Gradle version catalog - read more: https://docs.gradle.org/current/userguide/platforms.html#sub:version-catalog
 dependencies {
     implementation("net.minidev", "json-smart", "2.5.0")
+
 }
 
 // Set the JVM language level used to build the project. Use Java 11 for 2020.3+, and Java 17 for 2022.2+.
@@ -45,7 +46,7 @@ intellij {
     plugins = properties("platformPlugins").map { it.split(',').map(String::trim).filter(String::isNotEmpty) }
 
     //TODO IMPORTANT Add plugins.set(listOf(file("LOCATION OF HAnS-0.0.4.jar")))
-    plugins.set(listOf(file("C:\\Users\\dstec\\Project\\HAnS\\build\\libs\\HAnS-0.0.4.jar")))
+    plugins.set(listOf(file("/Users/rimanhoubbi/Desktop/HAnS-2/build/libs/HAnS-0.0.8.jar")))
 
 }
 

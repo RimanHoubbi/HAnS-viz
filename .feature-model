@@ -12,6 +12,7 @@ HAnSViz
             TreeMap
             Scattering
             Tangling
+            FeatureHistory
     Browser
         ToolWindowHandler
             Open

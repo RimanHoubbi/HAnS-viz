@@ -26,6 +26,7 @@ limitations under the License.
 
 </head>
 <body id=" mainBody" class="box dark-mode">
+
 <div class="show-full-path">/src/main/java/se/isselab/hansviz/browser/BrowserSchemeHandlerFactory.java</div>
 <div class="hide-scattering"></div>
 <div class="scattering-window">
@@ -130,6 +131,9 @@ limitations under the License.
         <span class="material-symbols-outlined feature-info-button" id="toggleFeatureWindowButton">keyboard_double_arrow_right</span>
     </div>
 </div>
+<!-- Place featureHistoryContent here -->
+<div id="featureHistoryContent"></div>
+
 <div id="main" class="dark-mode"></div>
 <nav class="nav">
     <img class="logo" src="./img/pluginIcon.png" alt="HAnS-Viz">
@@ -138,6 +142,17 @@ limitations under the License.
         <li><a href="#" onclick="toggleChart(state.treeChart)">Tree View</a></li>
         <li><a href="#" onclick="toggleChart(state.treeMapChart)">Treemap View</a></li>
         <li><a href="#" onclick="toggleChart(state.tanglingChart)">Tangling</a></li>
+        <!-- Begin Feature History View with Submenu -->
+        <li class="submenu">
+            <a href="#" onclick="toggleSubmenu(event)">Feature History View</a>
+            <ul class="dropdown">
+                <li><a href="#" onclick="toggleChart(state.featureTimelineView)">Features Timeline View</a></li>
+                <li><a href="#" onclick="toggleChart(state.deletedFeaturesView)">Deleted Features View</a></li>
+            </ul>
+        </li>
+        <!-- End Feature History View with Submenu -->
+
+
     </ul>
     <div class="docked">
         <span class="material-symbols-outlined search-icon" id="searchIcon">search</span>
@@ -146,6 +161,20 @@ limitations under the License.
         <span class="material-symbols-outlined navOpenBtn">menu</span>
     </div>
 </nav>
+
+<div id="controls">
+    <!-- Dropdown to select a time period -->
+    <label for="timePeriodSelect">Select Time Period:</label>
+    <select id="timePeriodSelect" onchange="filterByTimePeriod()">
+        <option value="all">All Time</option>
+        <option value="last7days">Last 7 Days</option>
+        <option value="last30days">Last 30 Days</option>
+        <option value="lastYear">Last Year</option>
+        <!-- Add more options as needed -->
+    </select>
+</div>
+
+
 </body>
 <script src="js/main.js"></script>
 <script type="text/javascript">
