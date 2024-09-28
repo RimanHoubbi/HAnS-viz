@@ -7,11 +7,13 @@ import org.cef.callback.CefQueryCallback;
 import se.isselab.HAnS.featureHistoryView.FeatureCommitMapper;
 
 import java.util.List;
+import java.util.Map;
 
 public class FeatureHistoryJSONHandler {
     private final CefQueryCallback callback;
     private final JSONType jsonType;
     private final Project project;
+
     public enum JSONType {FEATURE_HISTORY}
 
     public FeatureHistoryJSONHandler(Project project, CefQueryCallback callback, FeatureHistoryJSONHandler.JSONType type) {
@@ -50,15 +52,13 @@ public class FeatureHistoryJSONHandler {
             commitsArray.add(commit);
         }
 
-        // Add series data (list of coordinate pairs)
         // Add series data (list of coordinate pairs with commitHash)
-        List<int[]> seriesDataList = featureCommitMapper.getSeriesData();
-        List<String> commitHashes = featureCommitMapper.getCommitHashes();
-        for (int[] dataPoint : seriesDataList) {
+        List<Map<String, Object>> seriesDataList = featureCommitMapper.getSeriesData();
+        for (Map<String, Object> dataPoint : seriesDataList) {
             JSONObject point = new JSONObject();
-            int featureIndex = dataPoint[0];
-            int commitIndex = dataPoint[1];
-            String commitHash = (commitIndex >=0 && commitIndex < commitHashes.size()) ? commitHashes.get(commitIndex) : "";
+            int featureIndex = (int) dataPoint.get("featureIndex");
+            int commitIndex = (int) dataPoint.get("commitIndex");
+            String commitHash = (String) dataPoint.get("commitHash");
             point.put("featureIndex", featureIndex);
             point.put("commitIndex", commitIndex);
             point.put("commitHash", commitHash);
@@ -80,7 +80,6 @@ public class FeatureHistoryJSONHandler {
         json.put("commits", commitsArray);
         json.put("seriesData", seriesDataArray);
         json.put("deletedFeatures", deletedFeaturesArray);
-
 
         // Debug output
         System.out.println("Feature History JSON: " + json);
