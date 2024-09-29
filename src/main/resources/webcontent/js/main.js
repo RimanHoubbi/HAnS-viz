@@ -1461,8 +1461,8 @@ function handleFeatureHistoryData() {
         tooltip: {
             trigger: 'item',
             formatter: function (params) {
-                const featureName = features[params.value[0]];
-                const commitTime = commits[params.value[1]];
+                const featureName = params.data.name;
+                const commitTime = params.data.commitTime;
                 return `Feature: ${featureName}<br>Commit Time: ${commitTime}`;
             }
         },
