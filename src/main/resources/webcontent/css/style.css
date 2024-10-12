@@ -817,3 +817,16 @@ a:hover {
   max-height: 0;
   overflow: hidden;
 }
+
+/* Disabled Checkbox Label */
+.feature-checkboxes label.disabled {
+  color: #aaa;
+}
+
+/* Warning Message Styling */
+.selection-warning {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+

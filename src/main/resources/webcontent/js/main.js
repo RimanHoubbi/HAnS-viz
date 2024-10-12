@@ -1312,14 +1312,13 @@ function openTreeView() {
     };
     option && myChart.setOption(option);
 }
-
-// &end[Tree]
-
 // &begin[FeatureHistory]
 
-let seriesData = [];      // All data points
 let allSeriesData = [];   // Copy of all data points for filtering
-let filteredData = [];    // Currently displayed data points
+let codeAnnotationsData = [];
+let fileMappingsData = [];
+let folderMappingsData = [];
+const MAX_FEATURES_DISPLAYED = 15; // Maximum number of features to display
 
 function toggleSubmenu(event) {
     event.preventDefault();
@@ -1339,47 +1338,6 @@ function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 }
-// Function to create the filter panel UI
-function createFeatureFilterPanel(features) {
-    const featureCheckboxesDiv = document.getElementById('featureCheckboxes');
-
-    features.forEach((feature, index) => {
-        const checkboxId = `featureCheckbox_${index}`;
-
-        const label = document.createElement('label');
-        label.setAttribute('for', checkboxId);
-
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.id = checkboxId;
-        checkbox.value = feature;
-        checkbox.checked = true; // Default to all features selected
-
-        checkbox.addEventListener('change', handleFeatureSelection);
-
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(feature));
-
-        featureCheckboxesDiv.appendChild(label);
-    });
-}
-
-// Function to initialize event listeners for the filter panel
-function initializeFeatureFilterPanel() {
-    // Toggle Filter Panel Visibility
-    const toggleButton = document.getElementById('toggleFilterPanel');
-    const filterContent = document.getElementById('filterContent');
-
-    toggleButton.addEventListener('click', () => {
-        if (filterContent.classList.contains('show')) {
-            filterContent.classList.remove('show');
-            filterContent.classList.add('hide');
-        } else {
-            filterContent.classList.remove('hide');
-            filterContent.classList.add('show');
-        }
-    });
-}
 
 // Logic to build and display the Feature History view
 function openFeatureTimelineView() {
@@ -1389,16 +1347,18 @@ function openFeatureTimelineView() {
     contentDiv.innerHTML = `
         <!-- Feature Filter Panel -->
         <div id="featureFilterPanel" class="feature-filter-panel">
-            <button id="toggleFilterPanel" class="toggle-filter-button">☰ Select Features</button>
+            <button id="toggleFilterPanel" class="toggle-filter-button">☰ Selections</button>
             <div id="filterContent" class="filter-content hide">
-                <h3>Select Features</h3>
+                <h4>Select Features</h4>
                 <div id="featureCheckboxes" class="feature-checkboxes">
-                    <!-- Dynamically populated checkboxes will go here -->
+                </div>
+                <div id="selectionWarning" class="selection-warning" style="display: none; color: red; margin-top: 10px;">
+                    You can select up to ${MAX_FEATURES_DISPLAYED} features only.
                 </div>
             </div>
         </div>
         <!-- Timeline Chart -->
-        <div id="timelineChart" style="width: 100%; height: calc(100vh - 150px);"></div>
+       <div id="timelineChart" style="width: 100%; height: 100vh;"></div>
     `;
 
     requestData('featureHistory', function () {
@@ -1409,10 +1369,8 @@ function openFeatureTimelineView() {
 
 function openDeletedFeaturesView() {
     if (!state.isInitialized) return;
-
     const contentDiv = document.getElementById('featureHistoryContent');
     contentDiv.innerHTML = ''; // Clear previous content
-
     requestData('featureHistory', function () {
         handleDeletedFeaturesData(); // Renders the deleted features table
         state.currentChart = state.deletedFeaturesView;
@@ -1422,37 +1380,94 @@ function openDeletedFeaturesView() {
 // Function to handle the feature history data and render the chart
 function handleFeatureHistoryData() {
     const data = jsonData.featureHistoryData;
-
     const features = data.features;
     const commits = data.commits;
 
-    seriesData = data.seriesData.map(point => {
-        return {
-            value: [point.featureIndex, point.commitIndex],
-            name: features[point.featureIndex], // Retrieve the name from features array
-            commitTime: commits[point.commitIndex], // Retrieve the commit time
-            commitHash: point.commitHash, // Commit Hash
-            category: point.category || 'default',// For color categorization
-            symbol: 'circle',
-            symbolSize: 10,
-            itemStyle: {
-                color: '#5470c6' // Default color for current features
-            }
-        };
-    });
+    processCodeAnnotations(data.codeAnnotations, features, commits);
+    processFileMappings(data.fileMappings, features, commits);
+    processFolderMappings(data.folderMappings, features, commits);
 
-    // Assign master data
-    allSeriesData = [...seriesData];
-    filteredData = [...allSeriesData]; // Initially, all data is displayed
+    allSeriesData = [...codeAnnotationsData, ...fileMappingsData, ...folderMappingsData];
+    // Determine default selected features
+    const defaultSelectedFeatures = features.slice(0, MAX_FEATURES_DISPLAYED);
+
+    // Filter and remap data based on default selection
+    const { filteredFeatures, remappedCodeAnnotationsData,
+        remappedFileMappingsData, remappedFolderMappingsData } = getFilteredAndRemappedData(defaultSelectedFeatures);
+
+    // Create the series options with the filtered and remapped data
+    const series = [
+        {
+            name: 'Code Annotations',
+            type: 'scatter',
+            data: remappedCodeAnnotationsData,
+            large: true,
+            largeThreshold: 2000,
+            symbolOffset: [0, 0],
+            selectedMode: 'single',
+            symbolSize: 10,
+            emphasis: getEmphasisOptions(),
+            tooltip: {
+                formatter: params => {
+                    const data = params.data;
+                    const featureName = data.name;
+                    return `Feature: ${featureName}<br/>
+                        Commit Time: ${data.commitTime}<br/>
+                        Commit Message: ${escapeHtml(data.commitMessage)}<br/>
+                        Author: ${data.commitAuthor}<br/>
+                        Click to copy commit hash`;
+                }
+            }
+        },
+        {
+            name: 'File Mappings',
+            type: 'scatter',
+            data: remappedFileMappingsData,
+            large: true,
+            symbolOffset: [10, 0],
+            selectedMode: 'single',
+            symbolSize: 10,
+            emphasis: getEmphasisOptions(),
+            tooltip: {
+                formatter: params => {
+                    const data = params.data;
+                    const featureName = data.name;
+                    return `Feature: ${featureName}<br/>
+                        Commit Time: ${data.commitTime}<br/>
+                        File: ${data.entityName}<br/>
+                        Click to copy commit hash`;
+                }
+            }
+        },
+        {
+            name: 'Folder Mappings',
+            type: 'scatter',
+            data: remappedFolderMappingsData,
+            large: true,
+            symbolOffset: [-10, 0],
+            selectedMode: 'single',
+            symbolSize: 12,
+            emphasis: getEmphasisOptions(),
+            tooltip: {
+                formatter: params => {
+                    const data = params.data;
+                    const featureName = data.name;
+                    return `Feature: ${featureName}<br/>
+                        Commit Time: ${data.commitTime}<br/>
+                        Folder: ${data.entityName}<br/>
+                        Click to copy commit hash`;
+                }
+            }
+        }
+    ];
 
     // Initialize the chart and store it in state
     const chartDom = document.getElementById('timelineChart');
     state.timelineChart = echarts.init(chartDom, 'customTheme');
 
-    // Define the chart options
     const options = {
         backgroundColor: customTheme.backgroundColor,
-        color: customTheme.color, // Use theme's color palette
+        color: customTheme.color,
         title: {
             text: 'Feature History Timeline',
             left: 'center',
@@ -1460,33 +1475,27 @@ function handleFeatureHistoryData() {
         },
         tooltip: {
             trigger: 'item',
-            formatter: function (params) {
-                const featureName = params.data.name;
-                const commitTime = params.data.commitTime;
-                return `Feature: ${featureName}<br>Commit Time: ${commitTime}`;
-            }
+            triggerOn: 'mousemove',
         },
+        legend: getLegendOptions(),
         grid: {
-            left: 150,     // Increase left margin to prevent y-axis labels from being cut off
-            right: 60,     // Optional: Adjust right margin if needed
-            bottom: 100,   // Increase bottom margin to make space for data zoom sliders
-            top: 80 ,       // Optional: Adjust top margin if needed
-            textStyle: customTheme.title.textStyle
+            left: 150,
+            right: 60,
+            bottom: 200,
+            top: 80,
         },
         xAxis: {
             type: 'category',
             name: 'Features',
-            data: features,
+            data: filteredFeatures,
             axisLabel: {
                 interval: 0,
                 rotate: 45,
                 fontSize: 12,
-                color:  customTheme.textStyle.color,
+                color: customTheme.textStyle.color,
             },
             axisLine: {
-                lineStyle: {
-                    color:customTheme.grid.borderColor
-                }
+                lineStyle: { color: customTheme.grid.borderColor }
             }
         },
         yAxis: {
@@ -1501,101 +1510,178 @@ function handleFeatureHistoryData() {
                 color: customTheme.textStyle.color,
             },
             axisLine: {
-                lineStyle: {
-                    color: customTheme.grid.borderColor
-                }
+                lineStyle: { color: customTheme.grid.borderColor }
             }
         },
-        series: [{
-            name: 'Features',
-            type: 'scatter',
-            data: seriesData,
-            large: true, // Enable large mode
-            largeThreshold: 2000,
-            symbolSize: 12,
-            selectedMode: 'single', // Enables single selection. Use 'multiple' for multiple selections.
-            emphasis: {
-                focus: 'series',
-                label: {
-                    show: true,
-                    formatter: '{b}',
-                    fontSize: 14,
-                    color: '#fff',
-                    backgroundColor: 'rgba(0,0,0,0.5)',
-                    borderRadius: 4,
-                    padding: [2, 4]
+        series: series,
+        dataZoom: getDataZoomOptions(),
+        graphic: [
+            {
+                id: 'verticalLine',
+                type: 'line',
+                shape: {
+                    x1: 0,
+                    y1: 0,
+                    x2: 0,
+                    y2: state.timelineChart.getHeight()
                 },
-                itemStyle: {
-                    borderColor: '#fff',
-                    borderWidth: 2,
-                    shadowBlur: 10,
-                    shadowColor: 'rgba(0,0,0,0.5)'
-                }
-            },
-            itemStyle: {
-                color: function (params) {
-                    // Assign colors based on category or other attributes
-                    const categoryColors = {
-                        'critical': '#e74c3c',
-                        'normal': '#2ecc71',
-                        'minor': '#f1c40f',
-                        'default': '#5E42A6' // Using your primary color
-                    };
-                    return categoryColors[params.data.category] || '#5E42A6';
-                }
-            }
-        }],
-        dataZoom: [
-            {
-                type: 'slider',
-                xAxisIndex: 0,
-                start: 0,
-                end: 100,
-                bottom: 1,        // Place the x-axis data zoom slider below the x-axis
-                height: 20,
-                backgroundColor: customTheme.dataZoom.backgroundColor,
-                fillerColor: customTheme.dataZoom.fillerColor,
-                handleColor: customTheme.dataZoom.handleColor,
-                handleIcon: 'M8.7,0.5c-1.8,0-3.3,1.5-3.3,3.3v12.3c0,1.8,1.5,3.3,3.3,3.3h1.5v-19H8.7z', // Optional: Customize handle icon
-                handleSize: '80%', // Optional: Customize handle size
+                style: {
+                    stroke: '#5E42A6',
+                    lineWidth: 1,
+                    lineDash: [5, 5]
+                },
+                invisible: true // Initially hide the line
             },
             {
-                type: 'slider',
-                yAxisIndex: 0,
-                start: 0,
-                end: 100,
-                right: 20,         // Place the y-axis data zoom slider to the right
-                width: 20,         // Set the width of the slider
-                top: 30,
-                orient: 'vertical' // Keep vertical orientation
+                id: 'horizontalLine',
+                type: 'line',
+                shape: {
+                    x1: 0,
+                    y1: 0,
+                    x2: state.timelineChart.getWidth(),
+                    y2: 0
+                },
+                style: {
+                    stroke: '#5E42A6',
+                    lineWidth: 1,
+                    lineDash: [5, 5]
+                },
+                invisible: true
             },
             {
-                type: 'inside',
-                xAxisIndex: 0,
-                start: 0,
-                end: 100
+                id: 'xLabel',
+                type: 'text',
+                style: {
+                    text: '', // Will be set dynamically
+                    textAlign: 'center',
+                    textVerticalAlign: 'middle',
+                    textFill: '#000',
+                    font: 'bold 12px sans-serif',
+                    textBackgroundColor: 'rgb(128, 128, 128)',
+                    textPadding: [3, 5], // Padding around the text
+                    textBorderRadius: 3,   // Rounded corners
+                    opacity: 3
+                },
+
+
+                invisible: true
             },
             {
-                type: 'inside',
-                yAxisIndex: 0,
-                start: 0,
-                end: 100
+                id: 'yLabel',
+                type: 'text',
+                style: {
+                    text: '',
+                    textAlign: 'center',
+                    textVerticalAlign: 'middle',
+                    textFill: '#000',
+                    font: 'bold 12px sans-serif',
+                    textBackgroundColor: 'rgb(128, 128, 128)',
+                    textPadding: [3, 5],
+                    textBorderRadius: 3,
+                    opacity: 3
+                },
+
+                invisible: true
             }
         ]
     };
-
-    // Set and display the chart options
     state.timelineChart.setOption(options);
 
-    // Create the feature filter panel
-    createFeatureFilterPanel(features);
+    // Initialize crosshair event listeners
+    function updateCrosshair(event) {
+        const grid = state.timelineChart.getModel().getComponent('grid', 0).coordinateSystem.getRect();
+        const xLabelY = grid.y + grid.height + 5; // Slightly above the x-axis
+        const [mouseX, mouseY] = [event.offsetX, event.offsetY];
+        const pointInGrid = state.timelineChart.convertFromPixel({ seriesIndex: 0 }, [mouseX, mouseY]);
 
-    // Initialize event listeners for the filter panel
+        if (pointInGrid) {
+            const [featureIndex, commitIndex] = pointInGrid;
+            const features = state.timelineChart.getOption().xAxis[0].data; // Use the currently displayed features
+            const commits = jsonData.featureHistoryData.commits;
+
+            // Snapping logic: Find the closest feature and commit index
+            let nextFeatureIndex = Math.ceil(featureIndex);
+            if (nextFeatureIndex >= features.length) {
+                nextFeatureIndex = features.length - 1;
+            }
+
+            // Get the x-coordinate of the next feature
+            const snappedX = state.timelineChart.convertToPixel({ xAxisIndex: 0 }, nextFeatureIndex);
+
+            // Update the crosshair lines and labels
+            state.timelineChart.setOption({
+                graphic: [
+                    {
+                        id: 'verticalLine',
+                        invisible: false,
+                        shape: {
+                            x1: snappedX,
+                            y1: state.timelineChart.getHeight(),
+                            x2: snappedX,
+                            y2: 0
+                        }
+                    },
+                    {
+                        id: 'horizontalLine',
+                        invisible: false,
+                        shape: {
+                            x1: 0,
+                            y1: mouseY,
+                            x2: state.timelineChart.getWidth(),
+                            y2: mouseY
+                        }
+                    },
+                    {
+                        id: 'xLabel',
+                        invisible: false,
+                        position: [snappedX, xLabelY],
+                        style: {
+                            text: features[nextFeatureIndex],
+                            textAlign: 'center',
+                            textVerticalAlign: 'top'
+                        }
+                    },
+                    {
+                        id: 'yLabel',
+                        invisible: false,
+                        position: [5, mouseY],
+                        style: {
+                            text: commits[Math.round(commitIndex)],
+                            textAlign: 'left',
+                            textVerticalAlign: 'middle'
+                        }
+                    }
+                ]
+            });
+        } else {
+            hideCrosshair();
+        }
+    }
+
+    function hideCrosshair() {
+        state.timelineChart.setOption({
+            graphic: [
+                { id: 'verticalLine', invisible: true },
+                { id: 'horizontalLine', invisible: true },
+                { id: 'xLabel', invisible: true },
+                { id: 'yLabel', invisible: true }
+            ]
+        });
+    }
+    state.timelineChart.getZr().on('mousemove', function (event) {
+        updateCrosshair(event);
+    });
+
+    state.timelineChart.getZr().on('mouseout', function () {
+        hideCrosshair();
+    });
+
+    createFeatureFilterPanel(features);
     initializeFeatureFilterPanel();
 
     // Click Event Handler with Debouncing (400ms delay)
     state.timelineChart.on('click', debounce(function (params) {
-        if (params.componentType === 'series' && params.seriesType === 'scatter') {
+        if (params.componentType === 'series') {
             const commitHash = params.data.commitHash;
 
             if (commitHash && commitHash !== "Unknown Commit Hash") {
@@ -1616,37 +1702,241 @@ function handleFeatureHistoryData() {
     }
 }
 
+/// Function to create the filter panel UI
+function createFeatureFilterPanel(features) {
+    const featureCheckboxesDiv = document.getElementById('featureCheckboxes');
+    const selectionWarning = document.getElementById('selectionWarning');
+    let selectedCount = 0;
 
-// handle the deleted features data and render the table
-function handleDeletedFeaturesData() {
-    const deletedFeatures = jsonData.deletedFeaturesData;
+    features.forEach((feature, index) => {
+        const checkboxId = `featureCheckbox_${index}`;
+        const label = document.createElement('label');
+        label.setAttribute('for', checkboxId);
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = checkboxId;
+        checkbox.value = feature;
 
-    // Build HTML content
-    const deletedFeaturesDiv = document.getElementById('featureHistoryContent');
-    let htmlContent = '<h2>Deleted Features</h2>';
-    htmlContent += '<table class="deleted-features-table">';
-    htmlContent += '<tr><th>Feature Name</th><th>Last Commit Time</th><th>Commit Hash</th></tr>';
+        // Check only the first MAX_FEATURES_DISPLAYED features by default
+        if (index < MAX_FEATURES_DISPLAYED) {
+            checkbox.checked = true;
+            selectedCount++;
+        } else {
+            checkbox.checked = false;
+        }
 
-    deletedFeatures.forEach(feature => {
-        const fullHash = feature.commitHash;
-        const truncatedHash = fullHash.substring(0, 7); // Shorten hash for display
-        const lastCommitTime = feature.lastCommitTime;
+        checkbox.addEventListener('change', function () {
+            if (checkbox.checked) {
+                selectedCount++;
+                if (selectedCount > MAX_FEATURES_DISPLAYED) {
+                    // Prevent checking this box
+                    checkbox.checked = false;
+                    selectedCount--;
+                    // Show warning message
+                    selectionWarning.style.display = 'block';
+                } else if (selectedCount === MAX_FEATURES_DISPLAYED) {
+                    // Disable all unchecked checkboxes
+                    const allCheckboxes = document.querySelectorAll('#featureCheckboxes input[type="checkbox"]');
+                    allCheckboxes.forEach(cb => {
+                        if (!cb.checked) {
+                            cb.disabled = true;
+                            cb.parentElement.classList.add('disabled');
+                        }
+                    });
+                    // Show warning message
+                    selectionWarning.style.display = 'block';
+                }
+            } else {
+                selectedCount--;
+                if (selectedCount < MAX_FEATURES_DISPLAYED) {
+                    // Enable all checkboxes
+                    const allCheckboxes = document.querySelectorAll('#featureCheckboxes input[type="checkbox"]');
+                    allCheckboxes.forEach(cb => {
+                        cb.disabled = false;
+                        cb.parentElement.classList.remove('disabled');
+                    });
+                    // Hide warning message
+                    selectionWarning.style.display = 'none';
+                }
+            }
+            handleFilterChange();
+        });
 
-        // Add the HTML content for this feature
-        htmlContent += `
-            <tr>
-                <td>${feature.featureName}</td>
-                <td>${lastCommitTime}</td>
-                <td title="Click to copy full hash" onclick="copyToClipboard('${fullHash}')">${truncatedHash}</td>
-            </tr>`;
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(` ${feature}`));
+        featureCheckboxesDiv.appendChild(label);
     });
-
-    htmlContent += '</table>';
-    deletedFeaturesDiv.innerHTML = htmlContent;
 }
 
-// Handle feature selection changes
-function handleFeatureSelection() {
+// Function to initialize event listeners for the filter panel
+function initializeFeatureFilterPanel() {
+    // Toggle Filter Panel Visibility
+    const toggleButton = document.getElementById('toggleFilterPanel');
+    const filterContent = document.getElementById('filterContent');
+    toggleButton.addEventListener('click', () => {
+        if (filterContent.classList.contains('show')) {
+            filterContent.classList.remove('show');
+            filterContent.classList.add('hide');
+        } else {
+            filterContent.classList.remove('hide');
+            filterContent.classList.add('show');
+        }
+    });
+
+    // Initially hide the selection warning
+    const selectionWarning = document.getElementById('selectionWarning');
+    selectionWarning.style.display = 'none';
+}
+
+function processCodeAnnotations(annotations, features, commits) {
+    const [primaryColor] = customTheme.color;
+    codeAnnotationsData = annotations.map(point => ({
+        value: [point.featureIndex, point.commitIndex],
+        name: features[point.featureIndex],
+        commitTime: commits[point.commitIndex],
+        commitHash: point.commitHash,
+        commitMessage: point.commitMessage,
+        commitAuthor: point.commitAuthor,
+        type: 'codeAnnotation',
+        symbol: 'circle',
+        itemStyle: { color: primaryColor }
+    }));
+}
+
+function processFileMappings(fileMappings, features, commits) {
+    const [, , , , , , , ,neonBlue] = customTheme.color;
+    fileMappingsData = fileMappings.map(point => ({
+        value: [point.featureIndex, point.commitIndex],
+        name: features[point.featureIndex],
+        commitHash: point.commitHash,
+        commitTime: point.commitTime,
+        entityName: point.entityName,
+        type: 'fileMapping',
+        symbol: 'rect',
+        itemStyle: { color: neonBlue }
+    }));
+}
+
+function processFolderMappings(folderMappings, features, commits) {
+    const [, , , , , , , , , neonPink] = customTheme.color;
+    folderMappingsData = folderMappings.map(point => ({
+        value: [point.featureIndex, point.commitIndex],
+        name: features[point.featureIndex],
+        commitHash: point.commitHash,
+        commitTime: point.commitTime,
+        entityName: point.entityName,
+        type: 'folderMapping',
+        symbol: 'diamond',
+        itemStyle: { color: neonPink }
+    }));
+}
+
+function getLegendOptions() {
+    const [primaryColor, , , , , , , ,neonBlue, neonPink] = customTheme.color;
+    return {
+        data: [
+            { name: 'Code Annotations', icon: 'circle', itemStyle: { color: primaryColor } },
+            { name: 'File Mappings', icon: 'rect', itemStyle: { color: neonBlue } },
+            { name: 'Folder Mappings', icon: 'diamond', itemStyle: { color: neonPink } }
+        ],
+        bottom: '7%',
+        left: 'center',
+        orient: 'horizontal',
+        textStyle: { color: customTheme.textStyle.color }
+    };
+}
+
+function getDataZoomOptions() {
+    return [
+        {
+            type: 'slider',
+            xAxisIndex: 0,
+            start: 0,
+            end: 100,
+            bottom: 1,
+            height: 20,
+        },
+        {
+            type: 'slider',
+            yAxisIndex: 0,
+            start: 0,
+            end: 100,
+            right: 20,
+            width: 20,
+            top: 30,
+            orient: 'vertical'
+        },
+        { type: 'inside', xAxisIndex: 0, start: 0, end: 100 },
+        { type: 'inside', yAxisIndex: 0, start: 0, end: 100 }
+    ];
+}
+
+function getEmphasisOptions() {
+    return {
+        focus: 'self',
+        label: {
+            show: true,
+            formatter: '{b}',
+            fontSize: 14,
+            color: '#fff',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            borderRadius: 4,
+            padding: [2, 4]
+        },
+        itemStyle: {
+            borderColor: '#fff',
+            borderWidth: 2,
+            shadowBlur: 10,
+            shadowColor: 'rgba(0,0,0,0.5)'
+        }
+    };
+}
+// Function to get filtered and remapped data based on selected features
+function getFilteredAndRemappedData(selectedFeatures) {
+    const features = jsonData.featureHistoryData.features;
+    const commits = jsonData.featureHistoryData.commits;
+
+    // Filter the allSeriesData to include only selected features
+    const filteredData = allSeriesData.filter(point =>
+        selectedFeatures.includes(point.name)
+    );
+
+    // Extract data for each annotation type
+    const filteredCodeAnnotationsData = filteredData.filter(point => point.type === 'codeAnnotation');
+    const filteredFileMappingsData = filteredData.filter(point => point.type === 'fileMapping');
+    const filteredFolderMappingsData = filteredData.filter(point => point.type === 'folderMapping');
+
+    // Create a mapping from old featureIndex to new featureIndex
+    const oldToNewIndexMap = {};
+    selectedFeatures.forEach((feature, newIndex) => {
+        const oldIndex = features.indexOf(feature);
+        oldToNewIndexMap[oldIndex] = newIndex;
+    });
+
+    // Helper function to remap feature indices
+    function remapFeatureIndex(point) {
+        const oldFeatureIndex = point.value[0];
+        const newFeatureIndex = oldToNewIndexMap[oldFeatureIndex];
+        return {
+            ...point,
+            value: [newFeatureIndex, point.value[1]] // Update feature index
+        };
+    }
+
+    // Remap feature indices
+    const remappedCodeAnnotationsData = filteredCodeAnnotationsData.map(remapFeatureIndex);
+    const remappedFileMappingsData = filteredFileMappingsData.map(remapFeatureIndex);
+    const remappedFolderMappingsData = filteredFolderMappingsData.map(remapFeatureIndex);
+
+    return {
+        filteredFeatures: selectedFeatures,
+        remappedCodeAnnotationsData,
+        remappedFileMappingsData,
+        remappedFolderMappingsData
+    };
+}
+//  handle annotation type selection changes
+function handleFilterChange() {
     const selectedFeatures = getSelectedFeatures();
     filterFeatures(selectedFeatures);
 }
@@ -1666,67 +1956,73 @@ function getSelectedFeatures() {
 // Filter features and update the chart
 function filterFeatures(selectedFeatures) {
     if (selectedFeatures.length === 0) {
-        // If no features selected, clear the chart
+        // If no features are selected, clear the chart
         state.timelineChart.setOption({
             xAxis: {
                 data: []
             },
-            series: [{
-                data: []
-            }]
+            series: [
+                { data: [] }, // Code Annotations
+                { data: [] }, // File Mappings
+                { data: [] }  // Folder Mappings
+            ]
         });
         return;
     }
 
-    // Filter the allSeriesData to include only selected features
-    const selectedFeatureIndices = selectedFeatures.map(feature => {
-        return jsonData.featureHistoryData.features.indexOf(feature);
-    }).filter(index => index !== -1); // Remove any invalid indices
+    // Get filtered and remapped data based on selected features
+    const { filteredFeatures, remappedCodeAnnotationsData,
+        remappedFileMappingsData, remappedFolderMappingsData } = getFilteredAndRemappedData(selectedFeatures);
 
-    // If some features are not found, log a warning
-    if (selectedFeatureIndices.length !== selectedFeatures.length) {
-        console.warn('Some selected features were not found in the data.');
-    }
-
-    // Update the xAxis categories to include only selected features
-    const filteredFeatures = selectedFeatures.filter(feature => {
-        return jsonData.featureHistoryData.features.includes(feature);
-    });
-
-    // Create a mapping from old featureIndex to new featureIndex
-    const oldToNewIndexMap = {};
-    filteredFeatures.forEach((feature, newIndex) => {
-        const oldIndex = jsonData.featureHistoryData.features.indexOf(feature);
-        oldToNewIndexMap[oldIndex] = newIndex;
-    });
-
-    // Filter and remap the series data
-    const newSeriesData = allSeriesData.filter(point => {
-        return selectedFeatureIndices.includes(point.value[0]);
-    }).map(point => {
-        return {
-            value: [oldToNewIndexMap[point.value[0]], point.value[1]],
-            name: point.name,
-            commitTime: point.commitTime,
-            commitHash: point.commitHash,
-            category: point.category,
-            symbol: 'circle',
-            symbolSize: 10,
-            itemStyle: point.itemStyle
-        };
-    });
+    // Update the series data with filtered and remapped data
+    const series = [
+        {
+            name: 'Code Annotations',
+            data: remappedCodeAnnotationsData
+        },
+        {
+            name: 'File Mappings',
+            data: remappedFileMappingsData
+        },
+        {
+            name: 'Folder Mappings',
+            data: remappedFolderMappingsData
+        }
+    ];
 
     // Update the chart's xAxis and series data
     state.timelineChart.setOption({
         xAxis: {
             data: filteredFeatures
         },
-        series: [{
-            data: newSeriesData
-        }]
+        series: series
     });
 }
 
+// handle the deleted features data and render the table
+function handleDeletedFeaturesData() {
+    const deletedFeatures = jsonData.deletedFeaturesData;
+    // Build HTML content
+    const deletedFeaturesDiv = document.getElementById('featureHistoryContent');
+    let htmlContent = '<h2>Deleted Features</h2>';
+    htmlContent += '<table class="deleted-features-table">';
+    htmlContent += '<tr><th>Feature Name</th><th>Last Commit Time</th><th>Commit Hash</th></tr>';
+    deletedFeatures.forEach(feature => {
+        const fullHash = feature.commitHash;
+        const truncatedHash = fullHash.substring(0, 7); // Shorten hash for display
+        const lastCommitTime = feature.lastCommitTime;
+
+        // Add the HTML content for this feature
+        htmlContent += `
+            <tr>
+                <td>${feature.featureName}</td>
+                <td>${lastCommitTime}</td>
+                <td title="Click to copy full hash" onclick="copyToClipboard('${fullHash}')">${truncatedHash}</td>
+            </tr>`;
+    });
+    htmlContent += '</table>';
+    deletedFeaturesDiv.innerHTML = htmlContent;
+}
 
 // Define the custom theme
 const customTheme = {
@@ -1735,7 +2031,12 @@ const customTheme = {
         '#8367D7', // Light Purple
         '#3B2A60', // Dark Purple
         '#A08CF8', // Lavender
-        '#BFA5FF'  // Soft Purple
+        '#BFA5FF' , // Soft Purple
+        '#333',    //black
+        '#4d7b93', // green
+        '#3878e2' , //blue
+        '#11ffe3', //neon blue
+        '#FF13F0'  //neon pink
     ],
     backgroundColor: '#ffffff', // Light background
     textStyle: {
@@ -1835,8 +2136,23 @@ function showNotification(message) {
     }, 2000);
 }
 
+// Function to escape HTML characters in commit messages
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+        '`': '&#x60;'
+    };
+    return text.replace(/[&<>"'`]/g, function(m) { return map[m]; });
+}
+
 // &end[FeatureHistory]
 
+
+// &end[Tree]
 
 //helper function for the treemap
 // &begin[TreeMap]
